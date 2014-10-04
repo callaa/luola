@@ -1,0 +1,11 @@
+[main]
+collisionmap = winterc.png
+artwork = winter.png
+thumbnail = winter.thumb.png
+name = Winter
+[end]
+
+[override]
+snowfall = 1
+cows = 0
+[end]

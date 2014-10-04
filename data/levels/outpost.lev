@@ -1,0 +1,7 @@
+[main]
+artwork = outpost.png
+collisionmap = outpostc.png
+thumbnail = outpost.thumb.png
+name = Outpost
+[end]
+

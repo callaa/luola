@@ -1,0 +1,7 @@
+[main]
+artwork = valley.png
+collisionmap = valleyc.png
+thumbnail = valley.thumb.png
+name = Valley
+[end]
+

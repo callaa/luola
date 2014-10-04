@@ -1,0 +1,7 @@
+[main]
+artwork = bunker.png
+collisionmap = bunker_col.png
+thumbnail = bunker.thumb.png
+name = Bunker
+[end]
+

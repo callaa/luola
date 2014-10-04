@@ -1,0 +1,7 @@
+[main]
+artwork = urban.png
+collisionmap = urbanc.png
+thumbnail = urban.thumb.png
+name = Urban
+[end]
+

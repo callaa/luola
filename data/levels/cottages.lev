@@ -1,0 +1,7 @@
+[main]
+collisionmap = cottagesc.png
+artwork = cottages.png
+thumbnail = cottages.thumb.png
+name = Cottages
+[end]
+
