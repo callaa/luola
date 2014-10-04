@@ -1,0 +1,517 @@
+23.10.2005 Version 1.3.0
+ * Bugfix: Pressing joystick buttons could toggle fullscreen mode in menus
+ * Bugfix: Game paused message is now properly centered again
+ * Bugfix: Special weapons like gravity coil and autorepair now deactivate when hit critically
+ * Improvement: Key repeat now works in menus
+ * Cleanup: removed last trace of old UTF8 font code
+ * New: Changeable video modes
+ * Bugfix: Level specials are drawn while the player screen fades out
+ * New: floating point scaling for levels (backwards compatibility with old compact level files was broken)
+ * Removed: smooth_scale level configuration option.
+ * Bugfix: A player remote controlling another player now relinquishes control if he himself gets under contorl of another player
+ * Bugfix: critical special weapon now deactivates the cloaking device
+ * Bugfix: plugged several memory leaks
+ * Bugfix: Pilot now detaches the ninjarope from a ship when it's destroyed
+ * Bugfix: fixed player team selection wraparound
+ * Bugfix: fixed a logic error in find_nearest_pilot()
+ * Added a cooloff period to ship recall
+ * Improved pilot aiming
+ * Misc. code cleanups
+
+14.08.2005 Version 1.2.9
+ * Fixed some compiler warnings
+ * Bugfix: Player messages were not displayed correctly in halfscreen mode
+ * Bugfix: Tried to free static memory in readPaletteBlock()
+ * Bugfix: bat attack was drawn incorrectly in halfscreen mode
+ * Base regeneration now works with multicolored bases
+ * Misc. code cleanups and minor bugfixes
+ * Added a level importer tool
+
+27.07.2005 Version 1.2.8
+ * Bugfix: Fixed scrolling up in level selection mode
+ * Bugfix: Soldier limit was read into helicopter limit
+ * Code cleanup: screen size can now be changed by changing SCREEN_W/H from defines.h
+ * Bugfix: Keypad enter is now recognized in wait_for_enter()
+ * New: Added big bullets option
+ * Bugfix: Endian bugs in file loading code were fixed.
+ * Bugfix: Toggling between fullscreen and windowed mode now works on other platforms than X11
+ * Swapped player 1 & 2 default keys
+ * Added sound effects to weapon selection screen
+ * Bugfix: Added more error checking to configuration file parser
+ * New: Multiple player screen sizes (quarter,half and full)
+ * Bugfix: Players in teams were counted wrong, resulting in matches that wouldn't end
+ * Player screens now fade out when player dies
+ * Using EMP now shuts down the ship for two seconds as a penalty
+ * Updated to autoconf 2.59 and automake 1.9
+ * Misc. code cleanups
+
+10.04.2005 Version 1.2.7
+ * Bugfix: Bases dissolved by acid would not regenerate
+ * Bugfix: Ship turning no longer gets stuck when a ship is speared
+ * Improvement: Level boundaries now act as regular walls to pilots
+ * New: Added sound effect volume setting
+ * Changed the bundled font to FreeSans
+ * Improvement: Replaced some of the old sound effects
+ * Bugfix: Ships no longer get stuck on regenerating bases
+ * Bugfix: Landing on bases with the antigravity weapon is now possible
+ * Increased the "4 Way" primary weapon firing rate
+ * New: Sound/music volumes can now be changed ingame
+ * Improvement: SFont rendered text now looks as good as SDL_ttf
+
+15.01.2005 Version 1.2.6
+ * All levels now require a configuration file
+ * Level configuration palette format was changed
+ * New playmode: Random weapons
+ * New: Destroyed bases can now regenerate
+ * Tweak: Snowfall now makes smoother piles
+ * Optimized level loading slightly
+ * Bugfix: Pilot would die when touching the ground while ninjaroping if it
+ was falling too fast when the rope was shot
+ * Ground critter placing alogrithm was improved
+ * Changed windowed/fullscreen toggle key to Alt-Enter
+ * Bugfix: Fixed fire animation
+ * Autorepair system now repairs critical hits for free
+
+01.01.2005 Version 1.2.5
+ * Bugfix: Turret animation could crash Luola
+ * Tweak: Ships and projectiles move a bit slower now.
+ * Tweak: Pilots no longer die as easily as before when falling
+ * Bugfix: Luola now compiles properly when sounds are enabled
+ * Bugfix: Firing a boomerang bomb and ejecting the pilot would crash the game
+ * Bugfix: Improvements were made to critter attack logic
+ * Improvement: Projectiles are now owned by ships, not players
+ * Bugfix: Fixed ship recalling (would recall other players ship when own was destroyed)
+ * Bugfix: If a pilot would go to the edge of the level, the game would crash
+ * Implemented snowfall and stars options in level settings file
+ * Bugfix: Stars were always visible
+ * Other smaller bugs were fixed
+
+26.12.2004 Version 1.2.4
+ * Bugfix: Some nasty bugs that were introduced in last few versions were fixed
+ * New: Turrets now fire at pilots
+ * Tweak: Increased game speed to 30 FPS
+ * Floating point numbers are now used for ship, pilot and projectile coordinates
+ * Tweak: Improved magnetic mine motion code
+ * Bugfix: Projectiles are now fired from the front of the ship
+ * Bugfix: Pilots can no longer go inside solid terrain with ninjarope
+ * New: Turrets now aim before firing
+
+18.12.2004 Version 1.2.3
+ * Bufix: Luola no longer crashes on startup if files are missing
+ * Cleanup: Removed some remaining references to NLS
+ * Bugfix: Level loading: PNG file extension was not recognized
+ * Bugfix: Fixed ship recall that was broken in previous release
+
+05.12.2004 Version 1.2.2 Stable
+ * Bugfix: menu.c CHAR type values were treated as integers.
+ * Bugfix: Last pixel was not checked in terrain collision detection
+ * Code was cleaned up.
+ * Removed the projectile cache
+ * Unified the linked list handling code
+ * Unified the configuration file loading code
+ * Custom palette can now be used on all types of levels.
+ * Removed internationalization support
+ * Updated SFont to version 2.03
+
+20.12.2003 Version 1.2.1 Stable
+ * Bugfix: Luola would crash when sounds were enabled, a player was killed and a pilot had been ejected.
+ * Fixed some compiler warnings.
+ * Optimization: Changed odd number checks %2 to &0x01
+ 
+03.08.2003 Version 1.2.0 Stable
+ * Weapon tweaks
+ * Bugfix: Game would sometimes crash if a player that was using Thunderbolt was destroyed while the weapon was active
+ * Bugfix: For some reason, level/weapon selection screen event queue would sometimes get clogged up
+ * Bugfix: Flamethrower can no longer be fired underwater
+ * Bugfix: Special weapon no longer gets stuck if a ship is frozen.
+ * Bugfix: Special weapon such as Flamethrower or Watergun could still be fired when out of ammo.
+
+22.06.2003 Version 1.1.7 Developement
+ * Partially rewrote the level/weapon selection screen
+ * Some weapon tweaks
+ * Added support for level icons
+ * Misc. bugfixes
+ * New weapon: Gravity coil
+ * Added splashed when flying into water
+
+05.06.2003 Version 1.1.6 Developement
+ * Fixed: Watergun would fire normal bullets when underwater
+ * Fixed: Jumpengine target points are no longer visible to other players
+ * Fixed: LCMAP files were sometimes offset by 1 pixel
+ * New: An LCMAP conversion utility was added
+ * New: Support for Luola 8bit levels was added
+ * Hardcoded support for V-Wing and Wings levels was removed
+ * Fixed: All helicopters and infantry were red
+ * Fixed: When the last ship in the list was destroyed, last_ship pointer was set to NULL
+
+01.06.2003 Version 1.1.5 Developement
+ * Screenshot key was changed from F10 to F11
+ * Fixed: Player 1 & 2 shield colours were swapped
+ * Fixed: Luola would crash sometimes when a turret was destroyed with Dart
+ * New: Added clipping for critter sprites
+ * Thunderbolt is a bit stronger now
+ * New: Implemented critical hits
+ * New weapon: EMP
+ * Fixed a typo that broke the compile if SDL_gfx was used
+ * Changed the player message system not to use static surfaces
+ * Code cleanup: Number of joypads is no longer limited
+
+28.05.2003 Version 1.1.4 Developement
+ * Fixed: Pilot's vector is no longer affected when retracting a rope that hasn't touched anything yet
+ * Fixed: If all players would die while in "last player must land on base" mode, the level wouldn't end
+ * Fixed: Player 1&2 colours were swapped when SDL_gfx was not used
+ * Wind now always affects blood/feathers
+ * Fixed: pilot would get stuck if touched flowing water
+ * New: If a pilot falls too fast, it is indicated by 'sweatdrops' that appear around his head
+ * Fixed: Player controls are now disabled when the ship is frozen
+ * Fixed: if a pilot attached a rope to an unmanned ship and tried to take it over, the game would crash
+ * Some improvements were made to ninjarope
+ * Fixed: If a bat died while sleeping, the game crashed
+ * Fixed: Some dart bugs
+ * Fixed: Player 1 & 2 colours are now correct
+
+25.05.2003 Version 1.1.3 Developement
+ * Fixed: luola would sometime crash when a ship was destroyed
+ * Fixed: a bug in LCMAP loading was fixed
+ * New: An LCMAP archiving utility was added
+ * New: Levels can contain extra ships
+ * New: Users can now put personal levels into ~/.luola/levels/
+ * Fixed: Frozen ship sprites were not loaded
+ * New: Added new playmodes (Start outside ship)
+ * New: A pilot can now recall a ship
+ * Fixed: Level that had a configuration file, but no override block would crash the game.
+ * New: Added support for Luola Compact Levelfiles
+
+17.05.2003 Version 1.1.2 Developement
+ * Fixed: luola no longer crashes if the playlist is blank
+ * Playlist: Lines beginning with '#' are now skipped
+ * Fixed: MIRVs angle now changes to match its direction
+ * Rewrote most of the player animation and input handling code
+ * Ingame weapon selection screen style was changed
+ * Option to have the main weapon semi-automatic was removed
+ * Added clipping for remote control and shield
+ * New: Special effect was added for cloaking device
+
+04.05.2003 Version 1.1.1 Developement
+ * Changed the Uint8s in menu.c to unsigned ints. (Now compiles with gcc-3.0)
+ * Changed some chars into ints to prevent signed/unsigned problems on different architechtures
+ * Fixed: Luola now longer crashes if the pilot goes outside the level boundary
+ * Added support for the LCMAP image format
+ * Fixed: Infantry and helicopter sprite backgrounds are now transparent
+ * An input event handling bug that sometimes made the game practically unplayable was fixed
+ * Added support for per level music files
+ * When a background music piece ends, the next in the playlist automatically starts playing
+ * Fixed: Helicopters would shoot themselves when attacking pilots
+ * Fixed: weapons such as snowball or microwave cannon no longer make a hole in the ground
+ * New weapons: Mirv, Flamethrower
+
+04.03.2003 Version 1.1.0 Developement
+ * Colours of player 1 and player 2 were swapped.
+ * Some graphics files now use colorkeys instead of alpha. RLE acceleration is now always used on colorkeyd images
+ * All TGA files were removed
+ * Graphics files are now stored in LDAT files
+ * Level loading system was partially rewritten
+ * Support for per level settings files was added
+
+29.11.2002 Version 1.0.1 Stable
+ * Sound support is again turned off by default (too unstable)
+ * If SDL_ttf was not available, the compile would fail
+ * A small bug in menu.c was fixed
+
+15.11.2002 Version 1.0.0 Stable
+ * V-Wing level importing function works a bit better now
+ * Fixed a bug in helicopter attack code
+ * Fixed a bunch of bugs in weapons
+ * Support for SDL_ttf was added
+ * Fixed: fire no longer burns holes in indestructable terrain
+ * Menu systems were rewritten
+ * Support for analog joysticks was removed (you can (and should) still use gamepads)
+ * Some makefile bugs were fixed
+ * Removed the thread based framerate scheduler
+ * Rearranged the animation and drawing code for better performance
+ * You can now set some explosion settings
+ * SDL_gfx is now enabled by default
+ * Fixed: if the level would end (eg. with ESC) ghosted players would remain transparent
+ * Pilot's ninjarope now works properly
+ * Misc. bugfixes and improvements
+ * A couple of memoryleaks were plugged
+ * Config files were moved to ~/.luola/ subdirectory and renamed
+
+12.10.2002 Version 0.9.9
+ * You can now apply a coating of explosives onto critters.
+ * Stars were added
+ * 3 new terrain type were added and the hole making function was optimized
+ * Screenshot filenames are now suffixed with luola's internal timestamp (from SDL_GetTicks)
+ * Pilots, infantry and helicopters are now properly coloured
+ * Fixed: helicopters would hit themselves when the target was at a certain angle
+ * More pilot enhancements were made
+ * Joystick now works in the level selection screen
+ * The critter code was cleaned up a bit so it is now more readable and extendable
+ * Boomerang bomb was modified
+ * Helicopter movement logic was improved. Movements are now softer and helicopters pursue escaping players
+ * Fixed: Max infantry and helicopter settings were saved wrong
+ * Added clipping to ship and special sprites and to the pilot ninjarope
+ * New critter: bat
+ * Fixed: radar colors were wrong without SDL_gfx
+ * Fixed: compile would fail in main.c if SDL_mixer was not used
+ * Player team code was rewritten
+ * Game over statistics screen was rewritten
+ * Luola now displays a warning message if no levels are found
+ * Underwater clay appears darker
+ * Partially rewrote the weapon animation code
+ * Implemented a pixel perfect terrain collision algorithm
+ * Cleaned up the player animation code a bit
+ * Several bug fixes and improvements were made
+ * Turrets can now be upside down
+ * It now takes a while for a jumppoint to open enough to accept a ship
+
+14.9.2002 Version 0.9.8
+ * If audio is not compiled in, audio settings menu is inaccessible.
+ * If audio is compiled in, but audiodevice cannot be initialized, luola will continue without sounds.
+ * Arrow keys can now be used to change numeric values in configuration screen
+ * Misc. tweaks and fixes
+ * Dead player's screens are no longer updated at all (you can reactive the old behaviour from defines.h . See README)
+ * Added new normal weapon
+ * If a player is knocked off the base while changing weapons, the weapon selection message now properly disappears
+ * Number of helicopters and soldiers are now limited (You can change or remove these limits from defines.h)
+ * Helicopters no longer see cloacked players
+ * Gravity effects now affect critters
+ * Ability to set some audio related settings from the commandline
+ * Gravity well effect now looks cooler
+ * Several pilot enhancements (rope, hold down keys to walk, etc.)
+ * Added radar (engage/disengage with F1)
+ * Fixed: joystick configuration screen would crash if a joystick with more than 7 buttons was used
+ * Option to enable reverse thrust was completely removed
+ * Fixed: players no longer repair faster when they are accelerating against a base
+ * Added a pause button
+ * New special weapons: Watergun, Ember, Acid
+ * Thunderbolt firing style was changed
+ * Ship speed now affects fired special weapons
+ * Fire no longer burns bases and indestructable terrain
+ * Fixed: luola no longer crashes if it gets an empty playlist
+ * Fixed: screen no longer nudges when the pilot drops out from parachute
+ * Ship now turns white to indicate damage
+ * Ability to select the number of critters
+ * Performance enhancements: linked lists now keep track of the last pointer instead of always searching thru the entire list
+ * Explosive terrain blows up slower
+ * Vwing style smoke now works
+ * If no enemy players are around, infantry and helicopters will battle by themselves
+ * Misc. small new features and bug fixes
+
+8.3.2002 Version 0.9.7
+ * Firestarter projectiles can now travel thru walls and don't affect pilots/critters
+ * When ejecting the pilot, the special weapon is no longer fired
+ * Particles are now cleared after every level
+ * Two new levels now come bundled with the luola package.
+ * A ship can now carry only one critter at a time
+ * Smoke from fires is now affected by wind
+ * Shield no longer repels gravitywells
+ * Fixed: Pilot would be ejected when firing the primary weapon after using dart.
+ * Missile's soundeffect was changed and one was added to Snowball.
+ * Added --version commandline option
+ * Configure no longer dies if SDL_mixer or SDL_gfx is not found
+ * Underwater bullets now travel slightly faster, making underwater combat possible
+ * Music volume can now be changed
+
+22.2.2002 Version 0.9.6
+ * Explosions and critters are no longer drawn across the player screen boundaries
+ * Special weapons such as the cloaking device now deactivate when switching weapons
+ * Some weapons are bit weaker now
+ * Rewrote the screen update rectangle arrangement code
+ * Pressing F12 switches between fullscreen and windowed mode
+ * Smoketrail is no longer emitted while cloaked
+ * Win32: configuration file and playlist file no longer have the dot in front of their filenames
+ * Fixed: a player that was changing weapons and got knocked off the base got stuck in the weapon switching menu
+ * Snowball now makes cloaked ships visible and drops from ghostmode
+ * Fixed remote control bug with analog players (was broken in the last release)
+ * Spear's angle is now changed by normal gravity as well as gravity fields
+ * A better firestarter was implemented
+ * New weapon: Mush
+ * Fixed a bug in draw_line and putpixel that crashed the game sometimes
+ * Pilot can now be ejected anytime by pressin Weapon1+Weapon2 down simultaneously instead of using the Fn buttons
+
+13.2.2002 Version 0.9.5
+ * Pressing ESC in weapon selection returns to level selection instead of ending the game
+ * If datafiles are not found, luola exits gracefully instead of segfaulting
+ * Added some extra info to analog joystick configuration screen
+ * Players with joysticks can now choose their weapons properly
+ * A game with three players ended abrubtly if an ejected pilot died
+ * Ship straightens immediately when it hits the base
+ * Reverse thrust is now disabled by default (you can re-enable it from defines.h)
+ * New weapons: Tag-gun
+ * Analog joystick turning speed is now normal
+
+29.1.2002 Version 0.9.4
+ * Added a Danish translation
+ * Wind no longer affects bullets that are underwater
+ * Sounds are now compiled in by default
+ * Watercurrents now affect bullets
+ * Misc. improvements
+ * 3 new primary weapons
+ * Special weapons can now be changed while recharging
+
+15.1.2002 Version 0.9.3
+ * Joystick configuration screen is now SDL_gfx compatable
+ * Bullet velocity is now affected by the firing ships velocity
+ * Added gettext support and Finnish translation
+ * Game over statistics screen now works properly
+
+12.1.2002 Version 0.9.2
+ * Luola can now use SDL_gfx to render better looking graphics (transparencies and antialiasing)
+ * hole.png is no longer needed.
+
+7.1.2002 Version 0.9.1
+ * SDL_mixer versions < 1.2.1 are now also supported.
+ * Projectiles are now fired from the nose of the ship
+ * Snow and (optionally) projectiles are now affected by wind
+ * Screen no longer follows a dead player
+ * Snow colour is now taken from the level palette
+ * Palette is now properly copied and the original surface is freed in scale_surface()
+
+2.1.2002 Version 0.9.0
+ * Fixed: game crashed if the first found level was of v-wing type
+ * Fixed: eventloop would fill up on a computer that was too slow to redraw the screen
+ * Support for Wings levelfile format was added
+ * Added copyright notices to all .c and .h files
+ * Fixed: frozen player now defrost at the end of the level
+ * Fixed: players with a joystick/pad can no longer fire while frozen
+ * Added an alternative endmode
+ * Fixed: destroyed players can no longer eject the pilot
+ * Microwave cannon and Thunderbolt are a bit more powerfull now
+ 
+27.12.2001 Version 0.8.0
+ * New weapons: Boomerang bomb, remote control, dividing mine
+ * The ship can now burrow in snow
+ * Shrapnel from explosions are a bit more random now
+ * Upgraded the SFont library to 1.5 and added support for scandinavian characters
+ * Homing missiles cannot home into invisible players accurately
+ * Things no longer attack dead players
+ * Weapons such as Shield, Thunderbolt or Autorepair no longer recharge while in use
+ * Repairing now has a special effect
+ * Missile turrets can now fire at the player even if he is under it
+ * Jump-points can now have 3 different lifetimes
+ * All mines can now be destroyed by shooting at them
+ * Better fish sprites
+
+21.12.2001 Version 0.7.0
+ * Fixed: frozen player would not defrost when hit level borders
+ * Fixed: player with joystick could turn while darting
+ * Sounds and music have been implemented
+ * 'make install' works now
+
+17.12.2001 Version 0.6.5
+ * Fixed a couple of memory related bugs
+ * Players other than 1 can now choose their weapons with their joysticks/pads
+ * Shotgun and landmine now fire more shrapnel
+ * Turret animations look a bit better now
+ * New weapons: Microwave cannon
+ * Fixed: players with analog joystick were able to move after the ship was dead
+ * Analog joystick is now usable in the menus
+ * Bullets no longer explode near level borders
+ * Weather effects: snow
+
+15.12.2001 Version 0.6.0
+ * Spear's angle is now changed when it gets near a gravity field
+ * New weapons: Gravity mine, Grav-gun, Thunderbolt,Shotgun and Rocket
+ * Added proper rounding to movement related float->integer conversions (=> much smoother ship movement)
+ * Improved the turret placing algorithm
+ * Added support for team play
+ * The ship now stays cloaked if the pilot is ejected
+ * Fixed a bug in game beginning screen that caused the game to get started even though nothing was selected
+ * The ship can now pick up groundcritters
+ * The ship's aim is now a bit more accurate
+ * All grenades are now gray
+ * Most of the joystick handling code has been rewritten and analog joystick support has been added
+ * Turrets are now animated
+ * Increased the number of ship sprite positions from 16 to 36
+
+11.12.2001 Version 0.5.0
+ * The pilot can now be ejected
+ * Fixed a bug in player 3 and 4 statusbars
+ * Homing missiles actually work now + looks better
+ * Force field now also repels ships
+ * Dart looks a bit better now
+ * New weapons: Speargun
+ * Missile shooting turrets now have their own graphics
+
+8.12.2001 Version 0.4.0
+ * Changed the player statusbar style
+ * Added infantry units
+ * Added helicopters
+ * Fixed: Snowball jammed the enemy's engines entirely
+ * Added an option to have V-Wing style smoketrail (enabled from defines.h)
+ * Added a messagebox to the save settings button
+
+4.12.2001 Version 0.3.9
+ * Changed the colour of turret-launched grenades to gray
+ * Added critters
+ * Fixed: When a turret that was first in the list was destroyed, the game would crash
+ * Fixed: When a player died while frozen, the ship would stay frozen in the next level
+ * Improved the physics engine a bit
+ * Added an option to disable smoke
+ * Normal projectiles can be affected by gravity
+ * Player can no longer be damaged when the shield is on
+
+1.12.2001 Version 0.3.7
+ * Fixed: a bug in player key configuration that crashed the game
+ * Fixed: If a player died while in ghostmode, sprite would stay in semitransparent state
+ * Afterburner can now be used underwater
+ * Added support for gamepads
+ * Gun barrels now need to cool down a bit before firing again
+ * Main gun can now be automatic
+ * Projectiles now affect ship's vector
+ * Missile turrets range has been increased
+ * Collision damage only occurs when player hits indestructable material, or at very high speeds (dart or afterburner)
+ * Changed the missile colour
+
+30.11.2001 Version 0.3.5
+ * Added automated turrets
+ * Fixed a bug in level selection
+ * Improved the jump-point graphics a bit
+ * New weapons: Dart, Landmine, Repair system
+ * Added support for explosive terrain2 and combustable terrain2
+ * Added support for V-Wing levels
+
+28.11.2001 Version 0.3.1
+ * Ice now has its own terrain type
+ * Snowball can no longer set things on fire
+ * Snowball creates a layer of frost when it hits the ground
+ * Water now melts frozen players
+ * Modified the palette a bit. Old levels must be changed !
+
+26.11.2001 Version 0.3.0
+ * New weapons: Ghost ship,afterburner, jump engine, claybomb, plastic explosive and snowball
+ * Added random jump gates to levels
+ * Random number generator is now seeded
+ 
+24.11.2001 Version 0.2.7
+ * The colour of new water (from underwater terrain) now comes from collision map image palette entry 4
+ * Scrapped the old level system (.lev files are no longer needed)
+ * The ship will no longer disappear if it's position is x==0 or y==0
+ * Implemented --fullscreen and --hidemouse
+ * Magnetic mines are now shot a short distance behid the ship. 
+ * Fixed a problem where mines would sometimes explode on their own
+ * Normal mines cloak, they can only be seen when the ship is near
+ * Tweaked the weapon settings
+ * More accurate projectile collisions
+ * Misc. bugfixes
+
+23.11.2001 Version 0.2.5
+ * Added option to allow ship collisions
+ * Added option to make bases indestructable
+ * Fixed a bug in putpixel() that made the game crash
+ * Added support for combustable terrain
+ * Ability to take screenshots
+ * New weapons: Shield, Mine
+
+21.11.2001 Version 0.2.0
+ * Added support for water currents and explosive terrain
+
+20.11.2001 Version 0.1.5
+ * Fixed the problem when a dead ship fell in water, the level would not end (except with ESC)
+ * Added a game over screen with statistics
+ * Added magnetic mines
+
+15.11.2001
+
+  * Initial release, version 0.1.0

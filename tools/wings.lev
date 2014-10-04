@@ -1,0 +1,54 @@
+# Sample configuration file for a Wings level
+[main]
+collisionmap = level.bmp
+name = My Wings Level
+scalex = 2
+scaley = 2
+[end]
+
+# Support for the Wings 1.40 palette according to colors.txt
+[palette]
+1-31 = ground
+32-47 = base
+48 = water
+49 = waterdown
+50 = waterleft
+51 = waterright
+52 = water
+53 = snow
+54 = ground
+55-56 = explosive
+57-63 = ground
+80-95 = indestructable
+96-111 = ground
+112-127 = combustable
+128-255 = ground
+[end]
+
+[icon]
+/* XPM */
+static char * wings_xpm[] = {
+"31 14 8 1",
+" 	c None",
+".	c #020202",
+"+	c #7C7BA1",
+"@	c #706F8D",
+"#	c #67667E",
+"$	c #646277",
+"%	c #9F9ED3",
+"&	c #8C8BB9",
+"              .................",
+"...  ... ......@@++&+&&+&+&&%&.",
+".%. ..&. .&..@.##@#@@++++++&&&.",
+".%...&&...&....................",
+".%..&.&..+..@..$.#...##.@...++.",
+".&..&.+..+..#..#$.#..#.##..@...",
+".&.&..+.#. .#..#..@.#. .#..@+..",
+".&.&..+.#...#..+..@.@. .+....+.",
+".++. .#@. .#..+..&..+..&..+....",
+".@.  .+.  .+..+..&...&&&...%&&.",
+"...................&...&.......",
+".##@@++++&&&&&%%%%..%%%. .%%&&.",
+".$#+@+++&+&&%&%%%%. ...  .%%%&.",
+"...................       ....."};
+[end]

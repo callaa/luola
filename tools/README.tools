@@ -1,0 +1,47 @@
+Tools for Luola
+
+importlev
+----------
+A tool to import levels from other caveflying games to Luola.
+If no graphics device is available, set the environment
+variable SDL_VIDEODRIVER to "dummy".
+
+Not all terrain types of foreign levels are supported. V-Wing is most compatible,
+followed by Wings. TOU has many level features that Luola doesn't, so missing
+terrain types are mapped to closest equivalents so the level is still playable.
+
+mkecompact
+----------
+Pack luola levels into a compact levelfile
+Note! Luola doesn't yet load the music from a compact level file!
+
+lcmap
+-----
+
+Compress/decompress image files to LCMAP format.
+
+ldat
+----
+An archiving utility for LDAT files.
+To see what a file contains use "ldat -l <file.ldat>"
+If you want to pack files into an archive, you can do it with
+ldat -p <file.ldat> <file1> <file2> ...
+You can also give index number to your files like this:
+ldat -p <file.ldat> <file1> [index] <file2> [index] ...
+Uncompressing is similiar, just replace -p with -x
+Every other file argument, if numeric, is treated as a index number.
+The default index number is 0.
+If you have a file thats name is a number, you must give the
+file before that an index number.
+For example, files myfile and 001.
+This doesn't work: ldat -p file.ldat myfile 001
+This does work: ldat -p file.ldat myfile 0 001
+You can also use a special INDEX file.
+Example:
+ldat: myfile.ldat
+0	FILE1	file1.jpg
+0	FILE2	file2.jpg
+0	SERIES	series.tga
+1	SERIES	series1.tga
+2	SERIES	series2.tga
+

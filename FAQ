@@ -1,0 +1,50 @@
+Q: How can I run luola in fullscreen ?
+
+A: Run Luola with --fullscreen parameter.
+  Fullscreen mode always works under windows. 
+  And there are two possibilities how to do this under linux:
+  1) Check that your X server and SDL supports the VidMode extension.
+     Then take a look at your "Modes" in XF86Config.
+     You should have something like this there:
+
+     Subsection "Display"
+       Depth       24
+       Modes       "1024x768" "800x600" "640x480"
+       ViewPort    0 0
+     EndSubsection
+
+     If everything is okay, just run luola with --fullscreen
+
+   2) Run luola in framebuffer.
+      If you have framebuffer support compiled into your kernel and SDL, you can
+      run luola without the X server
+
+Q: How can I enable the sounds ?
+
+A: In order to enable the sounds, you must pass --enable-sounds to ./configure.
+   You must have SDL_Mixer installed in order to use sounds. (Preferrably
+   version 1.2.1 or higher) Sounds are not compiled in by default because some
+   distributions have problems with it. This seems to be a bug in SDL and not
+   luola. The sounds will be compiled in by default when SDL's sound support is
+   stable enough. If you have sounds compiled in, sounds work on your system but
+   luola is quiet, check that you have sounds enabled from the startup options
+   and audio settings menus.
+
+Q: What does SDL_gfx do and how do I enable it ?
+
+A: SDL_gfx is compiled in by default, if available. To disable, pass
+   --disable-sdl-gfx to configure script.
+   When it is enabled, SDL_gfx drawing functions (such as pixel putting and
+   line drawing) are used instead of Luola's internal ones.  This allows such
+   graphical improvements as alpha blending (particles and menus look nicer),
+   anti-aliasing (lines look nicer) and surface resizing with softening (V-Wing
+   and Wings levels aren't as blocky as they are with luola's internal pixel
+   resizer)
+
+Q: I can get any background music !
+   I get the error message Module format not recognized
+
+A: The problem is in SDL_Mixer. You dont have support for the file type in
+question compiled in. Check your SDL_Mixer installation, download the
+necessary support libraries, recompile and reinstall.
+

@@ -1,0 +1,42 @@
+http://www.luolamies.org/software/luola/
+
+Main developer: Calle Laakkonen <calle@luolamies.org>
+
+Win32 ports up to 1.2.1: Peter Eismann
+
+Contributions:
+
+  Mads Villadsen
+  - Storing the configuration file to home directory
+  - Danish translation
+  - Bullet velocity is affected by the ship velocity
+  - Ingame weapon switching
+  - Extra primary weapons
+  
+  Pauli Virtanen
+  - Wings levelfile input and level to bmp converter
+  - Fixed a bug in game.c that crashed the game if first level in the level
+    directory was vwing type
+  - Screen is not redrawn if eventloop is clogged
+
+  Eero Tamminen
+  - Code cleanups
+  - Bug fixes
+
+  Gustavo Noronha
+  - Bug fix (for version 1.2.1)
+
+  Miika Vihersaari
+  - Sound effects
+
+  Jarno van der Kolk
+  - Level selection bug fix
+  - Helicopter limit bug fix
+  - Big bullets
+  - Screen size can now actually be changed from defines.h
+
+  Eddy Petrisor
+  - Big-endian support
+
+  Elias Kunnas
+  - Updated build scripts for autoconf 2.59 and automake 1.9

@@ -1,0 +1,179 @@
+Luola
+http://www.luolamies.org/sofware/luola/
+---------------------------------------------------------------
+
+Luola is a simple yet addictive arcade game where you fly a little V-shaped
+ship inside caverns and try to blow up other players.
+It was inspired by V-Wing, an old Finnish caveflying game.
+
+Installation
+--------------------------------------------------------------
+See INSTALL for generic installation instructions.
+But most of the time, you just do this:
+./configure
+make
+make install
+
+By default, sounds are not compiled in. If you want to enable sound support,
+pass --enable-sound to configure.
+If you have SDL_gfx installed, by default, Luola uses it for some drawing
+operations. If you don't wan't Luola to use SDL_gfx, pass --disable-sdl-gfx to
+configure. Luola can use Truetype fonts if you have SDL_ttf installed.
+If you don't want to enabled truetype support, pass --disable-ttf to configure.
+
+'make install' puts the actual game binary in /usr/local/bin and the data
+files to /usr/local/share/luola/ .
+
+Some usage notes
+----------------------------------------------------------------
+
+Screenshots:
+ You can take a screenshot anytime by pressing F11. (that is, if you WM doesn't
+ trap that key) The screenshot will be named luola_*.bmp and placed in ~./luola/
+ directory. The * is the number of ticks that has elapsed since luola was
+ started. This way, you can take multiple screenshots and keep them in
+ chronological order.
+
+Fullscreen:
+ To enter fullscreen mode, run luola with the --fullscreen parameter.
+ If luola runs in fullscreen mode by default and you want to run it
+ in windowed mode, use the --window paremeter. You can also switch
+ between fullscreen and windowed mode by pressing alt-enter any time
+ in the game. See the FAQ if you can't get fullscreen mode to work under Linux.
+
+Playing the game:
+
+ * Players control their ships with the keys previously selected in key
+   configuration.
+   
+ * Pressing Esc ends the level.
+ 
+ * The level ends when there is only one ship remaining or the last surviving
+   ship has landed on a base.
+   
+ * Pressing Weapon1 and downkey at the same time ejects the pilot. The pilot can
+   also be ejected when the ship is dead (gray) by pressing Weapon2.
+   
+ * You can return to your empty ship by walking over it. You can also take over
+   empty enemy ships this way...
+
+ * When on a base, hold down downkey and press left/right to switch special
+   weapons. (Note that when switching weapons, you lose the ammo you have.
+   Water can't turn to missiles, right?
+
+Playmodes:
+ * Normal - This is the normal playmode, nothing special
+
+ * Start outside ships - Otherwise the same as normal, but pilots start outside
+   their ships
+   
+ * Start outside ships-1 - like above, but one unlucky player has no ship...
+ 
+ * Random criticals	- Players start with random ship criticals
+
+ * Random weapons - Standard and special weapons are chosen at random
+
+Pilot controls:
+
+ * Move with Left and Right keys.
+
+ * Shoot with Weapon1 key
+
+ * Weapon2 key opens the parachute or cuts the rope
+
+ * Jump with the up key. While jumping, pressing the Up key again shoots the
+   rope in a 45 degree angle.
+   
+ * While on the rope, Weapon2 drops you free. You can sling back and forth and
+   climb up and down with the arrow keys.
+   
+ * Shoot the rope straight up with the Down key.
+
+ * You can lock the pilot controls by holding down Weapon2 key. When locked, the
+   pilot does not move, so you can aim your gun. When locked, the pilot does not
+   automaticly aim at enemies.
+
+ * You can kick another player out of his/her ship by first attaching the ninja
+   rope to it, getting as close as possible and then pressing Down+Weap1.
+
+ * If Ship Recall is enabled, you can teleport your ship back to you by pressing
+   Weapon2 while standing on a base. If your ship is destroyed, a new one will
+   be created. If someone else has boarded your ship, it cannot be recalled.
+
+Team play:
+  Team play is just like normal game with 4 players, except some rules
+  are enforced by the game itself. All games are actually team games as far
+  as Luola is concerned. Usually you just have only one player per team. The
+  game ends when all opposing teams are destroyed. Certain weapons are team-
+  aware:
+   * Homing missiles only target enemy team members
+   * Helicopters and infantry won't attack teammates
+
+Game end modes:
+  A level can end in two different ways.
+  It can end immediately after all opponents have been destroyed, or after
+  last surviving player has landed on a base. If the level does not have any
+  bases, the level ends immediately when only one player/team is left .
+
+Configuration file:
+  The configuration file contains the player key and game settings.
+  You should not need to modify it by hand as all the settings can be
+  changed from Luola's menus.
+
+Function keys:
+
+  * F11 anytime, takes a screenshot.
+  * Alt-Enter anytime, switches between fullscreen and windowed mode.
+  * F1 during gameplay, toggle radar.
+  * F5 during gameplay, decrease sound effect volume
+  * F6 during gameplay, increase sound effect volume
+  * F7 during gameplay, decrease music volume
+  * F8 during gameplay, increase music volume
+  * Pause key during gameplay, pauses/resumes the game
+
+Background music:
+ Luola can play any sound file as background music that is supported by
+ SDL_mixer, such as MP3 or OGG.
+ Put your playlist in ~/.luola/battle.pls and Luola will pick a song and
+ play it during gameplay. Supported playlist format is M3U.
+ This format is produced by many media players such as XMMS, Noatun and Winamp.
+ You can change the sound effect and music volumes during gameplay with F5-F8
+ buttons.
+
+Levels
+------------------------------------------------------------------------------
+
+Download the level packs from the luola homepage.
+The level pack contains descriptions of the levels.
+
+Luola can also use levels from pretty much any other caveflying game
+that use palette based levels. Sample level configuration files are provided
+for V-Wing and Wings levels in the tools/ subdirectory. See the LEVELFILE
+text file for more information.
+
+Level specials
+-------------------------------------------------------------------------------
+
+  Jump gates:
+   Jump-gates provide permanent wormholes between two or more points in the level.
+   They activate when a player flies over them. You can set the number of
+   jump-gates per level from the level settings screen. Weapons like Megabomb
+   and Rocket can travel thru wormholes.
+
+  Turrets:
+    These are automatic turrets that fire at everybody.
+    There are three types of turrets.
+    1. A normal turret, has an ordinary cannon.
+    2. Grenade launcher, fires grenade shells
+    3. SAM-Site, fires homing missiles
+
+    You can change the number of turrets from the level settings screen.
+
+  Critters:
+    Unlike other level specials, these don't do anything, except walk
+	(or fly or swim) around and get killed. (Note. Technically, infantry and
+	helicopters are also critters, so some critters actually do something)
+    You can enable/disable critters from the level settings screen. You can
+	also set the number of different critter species, including per player
+	limits for infantry and helicopters
+

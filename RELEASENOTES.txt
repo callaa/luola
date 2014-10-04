@@ -1,0 +1,15 @@
+Release notes for Luola 1.3.0
+------------------------------
+
+Luola 1.3.0 breaks backwards compatability with old compact level
+files.
+Specifically the following things have changed in levels:
+ * modified option was removed
+ * smooth_scaling option was removed
+ * scalex and scaley were replaced with aspect and zoom
+
+Level scaling is now done using the 'aspect' and 'zoom' options.
+They accept floating point numbers as parameters.
+Level size is is calculated in the following manner:
+	width = width*aspect*zoom
+	height = height*zoom

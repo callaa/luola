@@ -1,0 +1,9 @@
+Known bugs:
+ * Possible crash on level startup when using larger screen sizes
+
+Things to do
+ * Loading music from compact level files
+ * Force feedback (when SDL supports it)
+ * Clean up tools code
+ * Refactor the projectile animation code
+

@@ -1,0 +1,13 @@
+Since luola version 0.9.9 , levels are no longer distributed with the main
+source package. This is simply to save download time, as it is rather pointless
+to download the same levels over and over again when updating.
+Please go to the luola homepage
+http://www.luolamies.org/software/luola/
+and download a level pack.
+
+To install the levels, first install luola with 'make install' and then unpack
+the level pack into the systemwide levels directory. By default it is
+/usr/local/share/luola/levels
+If you do not have write access, you can also install the levels locally for the
+current user by unpacking them to ~/.luola/levels .
+

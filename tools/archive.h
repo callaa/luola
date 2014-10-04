@@ -1,0 +1,53 @@
+/*
+ * LDAT - Luola Datafile format archiver
+ * Copyright (C) 2002 Calle Laakkonen
+ *
+ * File        : archive.h
+ * Description : Functions to manipulate LDAT files
+ * Author(s)   : Calle Laakkonen
+ *
+ * LDAT is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * Luola is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+*/
+
+#ifndef ARCHIVE_H
+#define ARCHIVE_H
+
+/* List to store filenames */
+typedef struct _Filename {
+  char *filename;
+  char *id;
+  int index;
+  struct _Filename *next;
+  struct _Filename *prev;
+} Filename;
+
+/* Print the list of items in an LDAT file to stdout */
+/* Returns the number of items printed */
+int print_ldat_catalog(LDAT *ldat,int verbose);
+
+/* Put the selected files into an LDAT file */
+int pack_ldat_files(LDAT *ldat,Filename *files);
+
+/* Unpack selected files from an LDAT file */
+int unpack_ldat_files(LDAT *ldat,Filename *files);
+
+/* Pack an LDAT file according to the description in INDEX */
+/* Returns the path for the output LDAT file */
+char *pack_ldat_index(LDAT *ldat,char *filename,int packindex);
+
+/* Unpack an LDAT file according to the description in INDEX */
+int unpack_ldat_index(char *filename);
+
+#endif

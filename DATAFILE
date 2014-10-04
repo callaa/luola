@@ -1,0 +1,33 @@
+Luola datafile format ver 1.0
+-----------------------------
+
+This is a generic datafile used by Luola.
+
+Header format
+-------------
+
+/* Initial headers, tells what this file is */
+(Uint8*4)	Header magic to identify this as a luola datafile ("LDAT")
+(Uint8)		Major version number of the datafile (0x01)
+(Uint8)		Minor version number of the datafile (0x00)
+(Uint16)	Number of items in catalog
+
+/* Catalog headers, tells what is in this file */
+/* This header is made out of blocks like this */
+(Uint8)		file identifier string length
+(uint8)*len	file identifier string
+(Uint16)	index number
+(Uint32)	position of file inside this one
+(Uint32)	length of the file
+
+Explanations
+------------
+
+The major version number of the file changes when backwards compatability
+is broken.
+
+The data header block loops for all the entries stored in the file.
+The files are looked up by the IDs assigned to them.
+You can also store an array of files under the same ID.
+(Usefull for storing sprites of an animation)
+
