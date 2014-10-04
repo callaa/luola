@@ -1,6 +1,6 @@
 /*
- * Luola - 2D multiplayer cavern-flying game
- * Copyright (C) 2003-2005 Calle Laakkonen
+ * Luola - 2D multiplayer cave-flying game
+ * Copyright (C) 2003-2006 Calle Laakkonen
  *
  * File        : levelfile.c
  * Description : Level loading
@@ -267,6 +267,9 @@ SDL_Surface *load_level_coll (struct LevelFile * level) {
 #ifdef WIN32
 #undef PACKAGE_DATA_DIR
 #define PACKAGE_DATA_DIR "data"
+#define HOMELEVELS "home/levels/"
+#else
+#define HOMELEVELS "~/.luola/levels"
 #endif
 
 /* Display this message when no levels are found */
@@ -275,11 +278,13 @@ void no_levels_found (void)
     const char *msg[] = {
         "No levels were found in the data directory",
         PACKAGE_DATA_DIR "/levels/",
+        "or",
+        HOMELEVELS,
         "Please download a level pack from the Luola homepage",
         "http://www.luolamies.org/software/luola/",
-        "and unpack it into the level directory."};
+        "and unpack it into the level directory.",NULL};
 
-    error_screen("No levels found","Press enter to exit",msg,5);
-    exit (0);
+    error_screen("No levels found","Press enter to exit",msg);
+    exit (1);
 }
 

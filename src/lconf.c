@@ -1,6 +1,6 @@
 /*
- * Luola - 2D multiplayer cavern-flying game
- * Copyright (C) 2003-2005 Calle Laakkonen
+ * Luola - 2D multiplayer cave-flying game
+ * Copyright (C) 2003-2006 Calle Laakkonen
  *
  * File        : lconf.c
  * Description : Level configuration file parsing
@@ -30,32 +30,36 @@
 #include "parser.h"
 
 static void parse_main_block(struct dllist *values,struct LSB_Main *mainb) {
-    CfgPtrType types[7];
-    void *pointers[7];
-    char *keys[7];
+    struct Translate tr[] = {
+        {"collisionmap", CFG_STRING, &mainb->collmap},
+        {"artwork", CFG_STRING, &mainb->artwork},
+        {"thumbnail", CFG_STRING, &mainb->thumbnail},
+        {"name", CFG_STRING, &mainb->name},
+        {"aspect", CFG_FLOAT, &mainb->aspect},
+        {"zoom", CFG_FLOAT, &mainb->zoom},
+        {"music", CFG_MULTISTRING, &mainb->music},
+        {0,0,0}
+    };
 
-    keys[0]="collisionmap";types[0]=CFG_STRING; pointers[0]=&mainb->collmap;
-    keys[1]="artwork";     types[1]=CFG_STRING; pointers[1]=&mainb->artwork;
-    keys[2]="thumbnail";   types[2]=CFG_STRING; pointers[2]=&mainb->thumbnail;
-    keys[3]="name";        types[3]=CFG_STRING; pointers[3]=&mainb->name;
-    keys[4]="aspect";      types[4]=CFG_FLOAT;  pointers[4]=&mainb->aspect;
-    keys[5]="zoom";        types[5]=CFG_FLOAT;  pointers[5]=&mainb->zoom;
-    keys[6]="music";       types[6]=CFG_MULTISTRING; pointers[6]=&mainb->music;
-
-    translate_config(values,sizeof(types)/sizeof(CfgPtrType),keys,types,pointers,0);
+    translate_config(values,tr,0);
 }
 
-static struct LSB_Override *parse_override_block(struct dllist *values) {
-    struct LSB_Override *override;
-    CfgPtrType types[12];
-    void *pointers[12];
-    char *keys[12];
+static struct LSB_Override *parse_override_block(struct dllist *values,
+        struct LSB_Override *override) {
+    struct Translate tr[] = {
+        {"critters", CFG_INT, &override->critters},
+        {"bases_indestructable", CFG_INT, &override->indstr_base},
+        {"snowfall", CFG_INT, &override->snowfall},
+        {"stars", CFG_INT, &override->stars},
+        {"turrets", CFG_INT, &override->turrets},
+        {"jumpgates", CFG_INT, &override->jumpgates},
+        {"cows", CFG_INT, &override->cows},
+        {"fish", CFG_INT, &override->fish},
+        {"birds", CFG_INT, &override->birds},
+        {"bats", CFG_INT, &override->bats},
+        {0,0,0}
+    };
 
-    override = malloc(sizeof(struct LSB_Override));
-    if(!override) {
-        perror("parse_override_block");
-        return NULL;
-    }
     override->indstr_base = -1;
     override->critters = -1;
     override->stars = -1;
@@ -66,72 +70,63 @@ static struct LSB_Override *parse_override_block(struct dllist *values) {
     override->fish = -1;
     override->birds = -1;
     override->bats = -1;
-    override->soldiers = -1;
-    override->helicopters = -1;
 
-    keys[0]="critters"; types[0]=CFG_INT; pointers[0]=&override->critters;
-    keys[1]="bases_indestructable"; types[1]=CFG_INT; pointers[1]=&override->indstr_base;
-    keys[2]="snowfall"; types[2]=CFG_INT; pointers[2]=&override->snowfall;
-    keys[3]="stars";    types[3]=CFG_INT; pointers[3]=&override->stars;
-    keys[4]="turrets";  types[4]=CFG_INT; pointers[4]=&override->turrets;
-    keys[5]="jumpgates";types[5]=CFG_INT; pointers[5]=&override->jumpgates;
-    keys[6]="cows";     types[6]=CFG_INT; pointers[6]=&override->cows;
-    keys[7]="fish";     types[7]=CFG_INT; pointers[7]=&override->fish;
-    keys[8]="birds";    types[8]=CFG_INT; pointers[8]=&override->birds;
-    keys[9]="bats";     types[9]=CFG_INT; pointers[9]=&override->bats;
-    keys[10]="soldiers";types[10]=CFG_INT;pointers[10]=&override->soldiers;
-    keys[11]="helicopters";types[11]=CFG_INT;pointers[11]=&override->helicopters;
-
-    translate_config(values,sizeof(types)/sizeof(CfgPtrType),keys,types,pointers,0);
+    translate_config(values,tr,0);
 
     return override;
 }
 
-static struct LSB_Object *parse_object_block(struct dllist *values) {
-    struct LSB_Object *object;
-    char *typestr=NULL;
-    CfgPtrType types[7];
-    void *pointers[7];
-    char *keys[7];
-
-    object = malloc(sizeof(struct LSB_Object));
-    if(!object) {
-        perror("parse_object_block");
-        return NULL;
+/* Object type string */
+const char *obj2str(ObjectType obj) {
+    switch(obj) {
+        case OBJ_TURRET: return "turret";
+        case OBJ_JUMPGATE: return "jumpgate";
+        case OBJ_COW: return "cow";
+        case OBJ_FISH: return "fish";
+        case OBJ_BIRD: return "bird";
+        case OBJ_BAT: return "bat";
+        case OBJ_SOLDIER: return "soldier";
+        case OBJ_HELICOPTER: return "helicopter";
+        case OBJ_SHIP: return "ship";
     }
+    return "<unknown>";
+}
+
+static struct LSB_Object *parse_object_block(struct dllist *values,
+        struct LSB_Object *object)
+{
+    char *typestr;
+    struct Translate tr[] = {
+        {"type", CFG_STRING, &typestr},
+        {"x", CFG_INT, &object->x},
+        {"y", CFG_INT, &object->y},
+        {"value", CFG_INT, &object->value},
+        {"link", CFG_INT, &object->link},
+        {"id", CFG_INT, &object->id},
+        {0,0,0}
+    };
+
     object->type = 0;
     object->x = 0; object->y = 0;
-    object->ceiling_attach = 0;
     object->value = 0;
     object->id = 0; object->link = 0;
 
-    keys[0]="type"; types[0]=CFG_STRING; pointers[0]=&typestr;
-    keys[1]="x";    types[1]=CFG_INT;    pointers[1]=&object->x;
-    keys[2]="y";    types[2]=CFG_INT;    pointers[2]=&object->y;
-    keys[3]="ceiling_attach";types[3]=CFG_INT; pointers[3]=&object->ceiling_attach;
-    keys[4]="value";types[4]=CFG_INT;    pointers[4]=&object->value;
-    keys[5]="link"; types[5]=CFG_INT;    pointers[5]=&object->link;
-    keys[6]="id";   types[6]=CFG_INT;    pointers[6]=&object->id;
 
-    translate_config(values,sizeof(types)/sizeof(CfgPtrType),keys,types,pointers,0);
+    translate_config(values,tr,0);
 
     if(typestr==NULL) {
         fprintf(stderr,"Warning: an object without a type!\n");
-    } else if(strcmp(typestr,"turret")==0)
-        object->type = OBJ_TURRET;
-    else if(strcmp(typestr,"jumpgate")==0)
-        object->type = OBJ_JUMPGATE;
-    else if(strcmp(typestr,"cow")==0)
-        object->type = OBJ_COW;
-    else if(strcmp(typestr,"fish")==0)
-        object->type = OBJ_FISH;
-    else if(strcmp(typestr,"bird")==0)
-        object->type = OBJ_BIRD;
-    else if(strcmp(typestr,"bat")==0)
-        object->type = OBJ_BAT;
-    else if(strcmp(typestr,"ship")==0)
-        object->type = OBJ_SHIP;
-    else fprintf(stderr,"Warning: unknown object type %s\n",typestr);
+    } else {
+        int r;
+        for(r=0;r<OBJECT_TYPES;r++) {
+            if(strcmp(typestr,obj2str(r))==0) {
+                object->type = r;
+                break;
+            }
+        }
+        if(r==OBJECT_TYPES)
+            fprintf(stderr,"Warning: unknown object type %s\n",typestr);
+    }
 
     free(typestr);
 
@@ -159,7 +154,7 @@ static int name2terrain(const char *name) {
     else if(strcmp(name,"basemat")==0) terrain=TER_BASEMAT;
     else if(strcmp(name,"tunnel")==0) terrain=TER_TUNNEL;
     else if(strcmp(name,"walkway")==0) terrain=TER_WALKWAY;
-    else printf("Error: unknown terrain name \"%s\" (set to TER_FREE)\n",name);
+    else fprintf(stderr, "%s(\"%s\"): unknown terrain name\n",__func__,name);
     return terrain;
 }
 
@@ -208,13 +203,38 @@ static void parse_palette_block(struct dllist *values,struct LSB_Palette *palett
     }
 }
 
+/* Generate default palette */
+/* Up to luola 1.3.1, this was also luola's internal palette */
+static void set_default_palette(struct LSB_Palette *palette) {
+    palette->entries[0]  = TER_FREE;
+    palette->entries[1]  = TER_GROUND;
+    palette->entries[2]  = TER_UNDERWATER;
+    palette->entries[3]  = TER_INDESTRUCT;
+    palette->entries[4]  = TER_WATER;
+    palette->entries[5]  = TER_BASE;
+    palette->entries[6]  = TER_EXPLOSIVE;
+    palette->entries[7]  = TER_EXPLOSIVE2;
+    palette->entries[8]  = TER_WATERFU;
+    palette->entries[9]  = TER_WATERFR;
+    palette->entries[10] = TER_WATERFD;
+    palette->entries[11] = TER_WATERFL;
+    palette->entries[12] = TER_COMBUSTABLE;
+    palette->entries[13] = TER_COMBUSTABL2;
+    palette->entries[14] = TER_SNOW;
+    palette->entries[15] = TER_ICE;
+    palette->entries[16] = TER_BASEMAT;
+    palette->entries[17] = TER_TUNNEL;
+    palette->entries[18] = TER_WALKWAY;
+    /* Set the rest to TER_GROUND for future compatability */
+    memset(palette->entries+19,TER_GROUND,256-19);
+}
+
 /* Load the configuration file from file */
 static struct LevelSettings *parse_level_config(struct dllist *config,
         const char *filename)
 {
     struct LevelSettings *settings;
     struct dllist *cfgptr;
-    int r;
 
     settings = malloc (sizeof (struct LevelSettings));
 
@@ -227,11 +247,7 @@ static struct LevelSettings *parse_level_config(struct dllist *config,
     settings->mainblock.zoom = 1;
     settings->mainblock.music = NULL;
 
-    /* Generate default palette */
-    for(r=0;r<=LAST_TER;r++)
-        settings->palette.entries[r] = r;
-    for(r=LAST_TER+1;r<256;r++)
-        settings->palette.entries[r] = TER_FREE;
+    set_default_palette(&settings->palette);
 
     settings->override = NULL;
     settings->objects = NULL;
@@ -242,13 +258,24 @@ static struct LevelSettings *parse_level_config(struct dllist *config,
         struct ConfigBlock *block=cfgptr->data;
         if(block->title==NULL || strcmp(block->title,"main")==0)
             parse_main_block(block->values,&settings->mainblock);
-        else if(strcmp(block->title,"override")==0)
-            settings->override = parse_override_block(block->values);
-        else if(strcmp(block->title,"object")==0) {
+        else if(strcmp(block->title,"override")==0) {
+            settings->override = malloc(sizeof(struct LSB_Override));
+            if(!settings->override) {
+                perror("parse_level_config");
+                return NULL;
+            }
+            parse_override_block(block->values,settings->override);
+        } else if(strcmp(block->title,"object")==0) {
+            struct LSB_Object *newobj = malloc(sizeof(struct LSB_Object));
+            if(!newobj) {
+                perror("parse_level_config");
+                return NULL;
+            }
+            parse_object_block(block->values,newobj);
             if(settings->objects)
-                dllist_append(settings->objects,parse_object_block(block->values));
+                dllist_append(settings->objects,newobj);
             else
-                settings->objects=dllist_append(NULL,parse_object_block(block->values));
+                settings->objects=dllist_append(NULL,newobj);
         } else if(strcmp(block->title,"palette")==0)
             parse_palette_block(block->values,&settings->palette);
         else if(strncmp(block->title,"end",3)==0 || strcmp(block->title,"objects")==0) {

@@ -1,3 +1,24 @@
+05.02.2006 Version 1.3.2
+ * Max soldier/helicopter limit can no longer be set in level settings
+ * Added option to make jump points one-way (default)
+ * Fixed a bug in critter code that would crash luola (introduced in 1.3.1)
+ * Fixed a bug in draw_line that could crash the game (luola-1.3.0-2)
+ * In last player must land to win endmode, second player screen in halfscreen mode would not be refreshed when first player died (luola-1.3.0-2)
+ * Implemented a new unified physics engine
+ * Removed Tag Gun
+ * Rearranged the internal palette to a more logical order
+ * Removed option to disable gravity for bullets
+ * Ship and weapons code was almost entirely rewritten
+ * Weather effects were changed into more generic decoration particles
+ * Pilot's rope is now spring system based
+ * Improved critter AI
+ * Removed option to make wind affect projectiles
+ * Critter, explosion and remote control animation frame counts are no longer hardcoded
+ * Bugfix: bat and fish counts in settings menu pointed to bird count
+ * Removed ceiling_attach object option
+ * Rearanged weapons
+ * Critters can now freeze
+
 20.12.2005 Version 1.3.1
  * The menu code was rewritten
  * An arbitrary number of joypads can now be used

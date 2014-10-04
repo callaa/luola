@@ -1,9 +1,9 @@
 /*
  * Luola - 2D multiplayer cave-flying game
- * Copyright (C) 2003-2006 Calle Laakkonen
+ * Copyright (C) 2006 Calle Laakkonen
  *
- * File        : intro.h
- * Description : Intro and configuration screens
+ * File        : flyer.h
+ * Description : Physics for things that fly (or swim)
  * Author(s)   : Calle Laakkonen
  *
  * Luola is free software; you can redistribute it and/or modify
@@ -21,24 +21,28 @@
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  */
 
-#ifndef INTRO_H
-#define INTRO_H
+#ifndef FLYER_H
+#define FLYER_H
 
-#include "ldat.h"
-#include "menu.h"
+#include "physics.h"
 
-/* Return values */
-#define INTRO_RVAL_STARTGAME	0x01
-#define INTRO_RVAL_EXIT		0x02
+typedef enum {AIRBORNE, UNDERWATER} FlyerMode;
 
-/* Initialize intro menus and background animations */
-extern void init_intro (LDAT *miscfile);
+struct Flyer {
+    struct Physics physics;     /* inherits Physics */
+    FlyerMode mode;             /* Swimming things use this code as well */
 
-/* Intro menus. */
-extern int game_menu_screen (void);
+    int bat;                    /* Perch upside down */
 
-/* This is called called by menu callbacks. */
-/* It is defined here because it is used in other modules as well */
-extern int draw_input_icon (int x, int y, MenuAlign align, struct MenuItem * item);
+    float speed;               /* How fast can this thing fly (or swim) */
+    float targx,targy;         /* Fly towards these coordinates */
+};
+
+/* Initialize flyer */
+extern void init_flyer(struct Flyer *flyer,FlyerMode mode);
+
+/* Animate flyer */
+extern void animate_flyer(struct Flyer *flyer,int lists, struct dllist *objs[]);
 
 #endif
+

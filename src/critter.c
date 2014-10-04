@@ -1,6 +1,6 @@
 /*
- * Luola - 2D multiplayer cavern-flying game
- * Copyright (C) 2001-2005 Calle Laakkonen
+ * Luola - 2D multiplayer cave-flying game
+ * Copyright (C) 2001-2006 Calle Laakkonen
  *
  * File        : critter.c
  * Description : Critters that walk,swim or fly around the level. Most are passive, but some attack (soldiers and helicopters)
@@ -25,8 +25,8 @@
 #include <math.h>
 
 #include "console.h"
-#include "particle.h"
 #include "critter.h"
+#include "decor.h"
 #include "player.h"
 #include "level.h"
 #include "game.h"
@@ -36,127 +36,55 @@
 
 #include "audio.h"
 
-#define BAT_FRAMES          3
-#define BIRD_FRAMES         4
-#define COW_FRAMES          6
-#define FISH_FRAMES         2
-#define INFANTRY_FRAMES	    1
-#define HELICOPTER_FRAMES   2
-#define CRITTER_ANGRY	35  /* How long does a critter stay angry */
-
-typedef enum { FlyingCritter, GroundCritter, WaterCritter } CritterType;
-
-struct Critter {
-    int x, y;
-    int x2, y2;
-    int frame;
-    int wait;
-    SDL_Rect rect;
-    Vector vector;
-    double angle;
-    int timer;
-    int owner; /* So attacking critters know who not to shoot */
-    int health;
-    struct Ship *carried;
-    int explode;
-    int angry;
-    CritterType type;
-    ObjectType species;
-};
-
-static struct dllist *critters;
+/* List of critters */
+struct dllist *critter_list;
 
 /* Number of limited critters */
 static int soldier_count[4];
 static int helicopter_count[4];
 
 /* Critter images */
-static SDL_Surface **critter_gfx[6];
+static SDL_Surface **cow_gfx;
+static SDL_Surface **bird_gfx;
+static SDL_Surface **fish_gfx;
+static SDL_Surface **bat_gfx;
+static SDL_Surface **soldier_gfx;
+static SDL_Surface **helicopter_gfx;
 static SDL_Surface *bat_attack;
+static SDL_Surface *iceblock;
 
-/* Splatter gravity */
-static Vector splt_gravity;
-static Vector splt_gravity2;
+/* Number of frames in critter animations */
+static int cow_frames;
+static int bird_frames;
+static int fish_frames;
+static int bat_frames;
+static int soldier_frames;
+static int helicopter_frames;
 
-/* Bat attack ! */
-/* We dont bother with a linked list. */
-/* MAX_CRITTERS is fine, since each bat can teasy only one ship at a time */
-struct Bat_Attack {
+/* Bat attack! */
+struct BatAttack {
     SDL_Rect src;
     SDL_Rect targ;
     int end;
     struct Critter *me;
-} crit_bat_attack[MAX_CRITTERS];
-
-/* Internally used function definitions */
-static void recalc_target (struct Critter * critter);
-
-/* The generic movement logic for ground critters */
-static void ground_critter_movement (struct Critter * critter);
-/* The generic attack logic for ground critters */
-static void ground_critter_attack (struct Critter * crittter);
-/* The generic movement logic for flying and swimming critters */
-static void air_critter_movement (struct Critter * critter);
-/* Special movement logic for helicopters */
-static void helicopter_movement (struct Critter * critter, int recalc);
-/* Special movement logic for bats */
-static void bat_movement (struct Critter * critter, int hitwall); 
-/* The attack critter for flying critters (helicopter) */
-static void air_critter_attack (struct Critter * critter);     
-
-static inline void draw_critter (struct Critter * critter);
-/* Kill a critter, (splatter, remove from list) */
-static struct dllist *kill_critter (struct dllist *critter); 
-
-/* Get critter name */
-static const char *critter2str(ObjectType critter) {
-    switch(critter) {
-        case OBJ_BIRD:
-            return "bird";
-        case OBJ_COW:
-            return "cow";
-        case OBJ_FISH:
-            return "fish";
-        case OBJ_BAT:
-            return "bat";
-        case OBJ_SOLDIER:
-            return "soldier";
-        case OBJ_HELICOPTER:
-            return "helicopter";
-        default:
-            return "<not a critter>";
-    }
-}
+} crit_bat_attack[16];
 
 /* Load critter data */
 void init_critters (LDAT *datafile) {
-    critters = NULL;
-    /* Load critter gfx. Note ! The order in which they are loaded counts ! The order must be same as the enumerations in critter.h ! */
-    /* Load bird frames */
-    critter_gfx[0] =
-        load_image_array (datafile, 0, T_ALPHA, "COW", 0, COW_FRAMES - 1);
-    critter_gfx[1] =
-        load_image_array (datafile, 0, T_ALPHA, "FISH", 0, FISH_FRAMES - 1);
-    critter_gfx[2] =
-        load_image_array (datafile, 0, T_ALPHA, "BIRD", 0, BIRD_FRAMES - 1);
-    critter_gfx[3] =
-        load_image_array (datafile, 0, T_ALPHA, "BAT", 0, BAT_FRAMES - 1);
-    critter_gfx[4] =
-        load_image_array (datafile, 0, T_COLORKEY, "INFANTRY", 0,
-                INFANTRY_FRAMES - 1);
-    critter_gfx[5] =
-        load_image_array (datafile, 0, T_COLORKEY, "HELICOPTER", 0,
-                          HELICOPTER_FRAMES - 1);
+    cow_gfx =
+        load_image_array (datafile, 0, T_ALPHA, "COW", &cow_frames);
+    fish_gfx =
+        load_image_array (datafile, 0, T_ALPHA, "FISH", &fish_frames);
+    bird_gfx =
+        load_image_array (datafile, 0, T_ALPHA, "BIRD", &bird_frames);
+    bat_gfx =
+        load_image_array (datafile, 0, T_ALPHA, "BAT", &bat_frames);
+    soldier_gfx =
+        load_image_array (datafile, 0, T_COLORKEY, "INFANTRY", &soldier_frames);
+    helicopter_gfx =
+        load_image_array (datafile, 0, T_COLORKEY, "HELICOPTER", &helicopter_frames);
     bat_attack = load_image_ldat (datafile, 1, T_ALPHA, "BAT_ATTACK", 0);
-    splt_gravity = makeVector (0, -WEAP_GRAVITY);
-    splt_gravity2 = makeVector (0, -WEAP_GRAVITY / 4.0);
-}
-
-/* Clear critters from memory */
-void clear_critters (void)
-{
-    dllist_free(critters,free);
-    critters=NULL;
+    iceblock = load_image_ldat (datafile, 1, T_ALPHA, "ICE", 0);
 }
 
 /* Add random number of critters of specified species in random locations */
@@ -178,6 +106,12 @@ void prepare_critters (struct LevelSettings * settings)
     struct Critter *crit = NULL;
     struct dllist *objects = NULL;
     int r;
+
+    /* Clear old critters */
+    dllist_free(critter_list,free);
+    critter_list=NULL;
+
+    /* Stop here if critters are disabled */
     if (level_settings.critters == 0)
         return;
 
@@ -192,7 +126,7 @@ void prepare_critters (struct LevelSettings * settings)
         soldier_count[r] = 0;
         helicopter_count[r] = 0;
     }
-    for (r = 0; r < level_settings.bats; r++) {
+    for (r = 0; r < sizeof(crit_bat_attack)/sizeof(struct BatAttack); r++) {
         crit_bat_attack[r].src.y = 0;
         crit_bat_attack[r].src.w = screen->w/2;
         crit_bat_attack[r].src.h = screen->h/2;
@@ -206,952 +140,804 @@ void prepare_critters (struct LevelSettings * settings)
         struct LSB_Object *object = objects->data;
         if (object->type >= FIRST_CRITTER && object->type <= LAST_CRITTER) {
             crit = make_critter (object->type, object->x, object->y, -1);
-            if (object->ceiling_attach)
-                object->y -= critter_gfx[object->type][0]->h;
-            if (object->value && object->type == OBJ_BAT) {
-                crit->carried = (struct Ship *) 1;
-                crit->frame = BAT_FRAMES - 1;
+            if(crit) {
+#if 0
+                if (object->ceiling_attach)
+                    critter->physics.y -= critter->gfx_rect.h;
+#endif
+                add_critter (crit);
             }
-            add_critter (crit);
         }
         objects = objects->next;
     }
 }
 
-struct Critter *make_critter (ObjectType species, int x, int y, int owner)
-{
-    struct Critter *newcritter = NULL;
-    int loop, loop2, r, breakloop;
-    unsigned char medium = 0;
-    newcritter = malloc (sizeof (struct Critter));
-    newcritter->health = 1;
-    newcritter->explode = 0;
-    newcritter->rect.x = 0;
-    newcritter->rect.y = 0;
-    newcritter->rect.w = critter_gfx[species-FIRST_CRITTER][0]->w;    /* All critter sprites should stay the same size */
-    newcritter->rect.h = critter_gfx[species-FIRST_CRITTER][0]->h;
-    switch (species) {
-    case OBJ_HELICOPTER:
-        newcritter->health = 3;
-        newcritter->angle = 0;
-        newcritter->rect.w /= 4;
-        newcritter->rect.x = newcritter->rect.w * owner;
-    case OBJ_BIRD:
-        newcritter->type = FlyingCritter;
-        medium = TER_FREE;
-        break;
-    case OBJ_BAT:
-        newcritter->type = FlyingCritter;
-        medium = TER_FREE;
-        newcritter->health = 2;
-        break;
-    case OBJ_SOLDIER:
-        newcritter->health = 1;
-        newcritter->rect.w /= 4;
-        newcritter->rect.x = newcritter->rect.w * owner;
-    case OBJ_COW:
-        newcritter->type = GroundCritter;
-        break;
-    case OBJ_FISH:
-        newcritter->type = WaterCritter;
-        medium = TER_WATER;
-        break;
-    default:
-        fprintf(stderr,"Unhandled critter type %d\n",species);
-        return NULL;
-    }
-    /* Find a place for the critter */
-    if (x < 0 || y < 0) {
-        loop = 0;
-        if (newcritter->type == GroundCritter) {
-            do {
-                if (loop++ > 1000) {
-                    fprintf(stderr,"Couldn't find a place for a %s after 1000 tries.\n", critter2str(species));
-                    free (newcritter);
-                    return NULL;
-                }
-                newcritter->x = 20 + rand () % (lev_level.width - 40);
-                newcritter->y = 20 + rand () % (lev_level.height - 40);
-                if(is_walkable(newcritter->x,newcritter->y)==0 &&
-                        is_water(newcritter->x,newcritter->y)==0) {
-                    do {
-                        newcritter->y++;
-                    } while(newcritter->y<=lev_level.height-20 &&
-                            is_walkable(newcritter->x,newcritter->y)==0 &&
-                            is_water(newcritter->x,newcritter->y)==0);
-                } else {
-                    newcritter->y=lev_level.height;
-                }
-            } while (newcritter->y>lev_level.height-20 ||
-                    is_walkable(newcritter->x,newcritter->y)==0 ||
-                    is_water(newcritter->x,newcritter->y));
-            newcritter->y -= critter_gfx[species][0]->h+1;
-        } else {
-            loop2 = 0;
-            breakloop = 0;
-            while (1) {
-                do {
-                    newcritter->x = 20 + rand () % (lev_level.width - 40);
-                    newcritter->y = 20 + rand () % (lev_level.height - 40);
-                    loop++;
-                    if (loop > 1000) {
-                        printf("Couldn't find a place for a %s after 1000 tries.\n",
-                            critter2str(species));
-                        free (newcritter);
-                        return NULL;
-                    }
-                } while (lev_level.solid[newcritter->x][newcritter->y] !=
-                         medium);
-                if (species == OBJ_BAT) {
-                    /* bats are all asleep when the level begins */
-                    for (r = 0; r < 100; r++) {
-                        if (newcritter->y - r < 20)
-                            break;
-                        if (hit_solid
-                            (newcritter->x + newcritter->rect.w / 2,
-                             newcritter->y - r) > 0) {
-                            newcritter->y -= r;
-                            newcritter->carried = (struct Ship *) 1;
-                            newcritter->frame = BAT_FRAMES - 1;
-                            breakloop = 1;
-                            break;
-                        }
-                    }
-                    if (breakloop)
-                        break;
-                    loop2++;
-                    if (loop2 > 20) {
-                        printf("Couldn't find a place for a %s after 20000 tries.\n",
-                                critter2str(species));
-                        free (newcritter);
-                        return NULL;
-                    }
-                } else {
-                    break;
-                }
-            }
-        }
-    } else {
-        newcritter->x = x;
-        newcritter->y = y;
-    }
-    if (newcritter->type == GroundCritter) {
-        newcritter->x2 = 0;
-    } else {
-        newcritter->x2 = newcritter->x;
-        newcritter->y2 = newcritter->y;
-        /*recalc_target(newcritter);*/
-    }
-    newcritter->vector = makeVector (0, 0);
-    newcritter->species = species;
-    newcritter->frame = 0;
-    newcritter->wait = 4;
-    newcritter->timer = 10;
-    newcritter->owner = owner;
-    newcritter->carried = NULL;
-    newcritter->angry = 0;
-    return newcritter;
+/* Splash of blood */
+static void splatter(struct Critter *critter) {
+    add_splash(critter->physics.x, critter->physics.y,5.0,16,
+            critter->physics.vel,make_blood);
 }
 
-/* Add a critter to the list */
-void add_critter (struct Critter * newcritter) {
-    if (newcritter->species == OBJ_SOLDIER) {
-        if (soldier_count[newcritter->owner] > level_settings.soldiers
-            && level_settings.soldiers) {
-            struct dllist *list = critters;
-            while (list) {
-                if (((struct Critter*)list->data)->species == OBJ_SOLDIER
-                    && ((struct Critter*)list->data)->owner == newcritter->owner) {
-                    kill_critter (list);
-                    break;
-                }
-                list = list->next;
-            }
-        }
-        soldier_count[newcritter->owner]++;
-    } else if (newcritter->species == OBJ_HELICOPTER) {
-        if (helicopter_count[newcritter->owner] > level_settings.helicopters
-            && level_settings.helicopters) {
-            struct dllist *list = critters;
-            while (list) {
-                if (((struct Critter*)list->data)->species == OBJ_HELICOPTER
-                    && ((struct Critter*)list->data)->owner == newcritter->owner) {
-                    kill_critter (list);
-                    break;
-                }
-                list = list->next;
-            }
-        }
-        helicopter_count[newcritter->owner]++;
-    }
-
-    if (critters)
-        dllist_append(critters,newcritter);
-    else
-        critters=dllist_append(critters,newcritter);
+/* Splash of blood and ice */
+static void shatter(struct Critter *critter) {
+    add_splash(critter->physics.x, critter->physics.y,5.0,8,
+            critter->physics.vel,make_blood);
+    add_splash(critter->physics.x, critter->physics.y,5.0,8,
+            critter->physics.vel,make_snowflake);
 }
 
-/* Critter gravity effects (caused by a GravityWell) */
-void cow_storm (int x, int y)
-{
-    struct dllist *list = critters;
-
-    while (list) {
-        struct Critter *critter=list->data;
-        if (abs (critter->x - x) < 100)
-            if (abs (critter->y - y) < 100) {
-                critter->vector.x -=
-                    (critter->x - x) / (abs (critter->x - x) +
-                                              0.01) / 1.3;
-                critter->vector.y -=
-                    (critter->y - y) / (abs (critter->y - y) +
-                                              0.01) / 1.3;
-            }
-        list = list->next;
+/* Timer function: change ground critter walking direction */
+static void gc_dosomething(struct Critter *critter) {
+    /* Decisions, 0 stay still, 1 walk left, 2 walk right */
+    int decision = rand()%3;
+    switch(decision) {
+        case 0: critter->walker.walking = 0; break;
+        case 1:
+                if(critter->walker.walking>0)
+                    critter->cornered+=1;
+                critter->walker.walking = -1;
+                break;
+        case 2:
+                if(critter->walker.walking<0)
+                    critter->cornered+=1;
+                critter->walker.walking = 1;
+                break;
     }
+    /* Time until next decision */
+    critter->timer = 1+rand()%60;
 }
 
-/** Animate critters **/
-void animate_critters (void) {
-    struct dllist *list = critters;
-    struct dllist *ships;
-    int maxframes;
-    int i1;
-    double f1;
-    while (list) {
-        struct Critter *critter=list->data;
-        switch (critter->species) {
-        case OBJ_BIRD:
-            maxframes = BIRD_FRAMES;
-            break;
-        case OBJ_BAT:
-            maxframes = BAT_FRAMES - !critter->carried;
-            break;
-        case OBJ_COW:
-            maxframes = (critter->x2 > 0) ? COW_FRAMES / 2 : COW_FRAMES;
-            break;
-        case OBJ_FISH:
-            maxframes =
-                (critter->x2 - critter->x >
-                 0) ? FISH_FRAMES / 2 : FISH_FRAMES;
-            break;
-        case OBJ_HELICOPTER:
-            maxframes =
-                (critter->x2 - critter->x >
-                 0) ? HELICOPTER_FRAMES / 2 : HELICOPTER_FRAMES;
-            break;
-        default:
-            maxframes = 0;
-            break;
-        }
-        critter->wait--;
-        if (critter->angry)
-            critter->angry--;
-        /* Gravity effects, check if someone is operating a force field nearby */
-        ships = ship_list;
-        while (ships) {
-            struct Ship *ship=ships->data;
-            if (ship->shieldup) {
-                f1 = hypot (abs (ship->x - critter->x),
-                            abs (ship->y - critter->y));
-                if (f1 < 100) {
-                    critter->vector.x -=
-                        ((ship->x - critter->x) / (abs (ship->x -
-                                                    critter->x) +
-                                               0.1)) / 1.3;
-                    critter->vector.y -=
-                        ((ship->y - critter->y) / (abs (ship->y -
-                                                    critter->y) +
-                                               0.1)) / 1.3;
-                }
-            } else if (ship->antigrav) {
-                f1 = hypot (abs (ship->x - critter->x),
-                            abs (ship->y - critter->y));
-                if (f1 < 200) {
-                    critter->vector.y -= 0.6;
-                }
-            }
-            ships = ships->next;
-        }
-        /* Critters don't go thru walls */
-        if (critter->x > lev_level.width - 20)
-            critter->x = lev_level.width - 20;
-        if (critter->y > lev_level.height - 20)
-            critter->y = lev_level.height - 20;
-        if (critter->type == FlyingCritter
-            && lev_level.solid[critter->x +
-                               critter->rect.w / 2][critter->y] !=
-            TER_FREE) {
-            critter->vector.x = 0;
-            critter->vector.y = 0;
-            if (critter->species == OBJ_HELICOPTER)
-                helicopter_movement (critter, 1); /* Recalculate heading */
-            else if (critter->species == OBJ_BAT)
-                bat_movement (critter, 1);
-        } else if (critter->type == WaterCritter
-                   && is_walkable (critter->x, critter->y) > 0) {
-            if (critter->vector.x > 5.0 || critter->vector.x > 5.0) {
-                list = kill_critter (list);
-                continue;
-            }
-            critter->vector.x = 0;
-            critter->vector.y = 0;
-        }
-        /* Water critter physics */
-        else if (critter->type == WaterCritter
-                 && lev_level.solid[critter->x][critter->y] ==
-                 TER_FREE) {
-            critter->vector.y += 0.375;
-            if (critter->vector.y > 6)
-                critter->vector.y = 6;
-            critter->vector.x /= 1.5;
-        }
-        /* Apply vectors */
-        critter->y += Round (critter->vector.y);
-        critter->x += Round (critter->vector.x);
-        /* Make sure the critter doesn't leave the level boundaries */
-        if (critter->x < 0)
-            critter->x = 0;
-        else if (critter->x >= lev_level.width)
-            critter->x = lev_level.width - 1;
-        if (critter->y < 0)
-            critter->y = 0;
-        else if (critter->y >= lev_level.height)
-            critter->x = lev_level.height - 1;
-
-        if (critter->type == GroundCritter) {     /* Ground critter physics */
-            if (is_water (critter->x, critter->y)) {
-                list = kill_critter (list);
-                continue;
-            }                   /* Ground types dont tolerate water */
-            if (is_walkable (critter->x, critter->y + critter->rect.h)) {
-                if (abs (critter->vector.y) >= 5) {        /* Critter hit the ground too fast */
-                    list = kill_critter (list);
-                    continue;
-                }
-                critter->vector.y = 0;
-                critter->vector.x = 0;
+/* Ground critter timer function: flee from any nearby enemy player */
+static void gc_flee(struct Critter *critter) {
+    if(critter->ff>0) {
+        double distance;
+        int enemy = find_nearest_enemy(critter->walker.physics.x,
+                critter->walker.physics.y, critter->owner, &distance);
+        if(distance<200.0) {
+            critter->walker.walkspeed = 3;
+            if(players[enemy].ship->physics.x < critter->walker.physics.x) {
+                if(critter->walker.walking<0)
+                    critter->cornered+=1;
+                critter->walker.walking = 1;
             } else {
-                critter->vector.y += 0.375;
-                critter->vector.x /= 1.5;
-                if (critter->vector.y > 6)
-                    critter->vector.y = 6;
+                if(critter->walker.walking>0)
+                    critter->cornered+=1;
+                critter->walker.walking = -1;
             }
-        }
-        /* Critter sprite animation */
-        if (critter->wait == 0) {
-            critter->wait = 4;
-            if (!(critter->species == OBJ_BAT && critter->carried))
-                critter->frame++;
-            if (critter->frame >= maxframes) {
-                if (critter->type == GroundCritter) {
-                    if (critter->x2 < 0)
-                        critter->frame = maxframes / 2;
-                    else
-                        critter->frame = 0;
-                } else if (critter->type == WaterCritter
-                           || critter->species == OBJ_HELICOPTER) {
-                    if (critter->x2 < critter->x)
-                        critter->frame = maxframes / 2;
-                    else
-                        critter->frame = 0;
-                } else
-                    critter->frame = 0;
-            }
-            /* Critter timer (used for attacking and such) */
-            if (critter->timer > 0)
-                critter->timer--;
-            /* - Movement and attack logic starts here - */
-            if (critter->type == GroundCritter) { /* Ground critter movement logic */
-                if (critter->species == OBJ_SOLDIER
-                    && critter->timer == 0) {
-                    ground_critter_attack (critter);
-                }
-                ground_critter_movement (critter);
-            } else {            /* Air & Water critter movement */
-                /* Birds shed feathers when you hit them */
-                if (critter->species == OBJ_BIRD) {
-                    i1 = find_nearest_player (critter->x,
-                                              critter->y,
-                                              critter->owner, &f1);
-                    if (f1 < 16) {
-                        splatter (critter->x, critter->y,
-                                  Feather);
-                        critter->vector.x =
-                            (critter->x - players[i1].ship->x) / 2.0;
-                        critter->vector.y =
-                            (critter->y - players[i1].ship->y) / 2.0;
-                    }
-                }
-                /* Helicopters attack players  */
-                if (critter->species == OBJ_HELICOPTER
-                    && critter->timer == 0) {
-                    air_critter_attack (critter);
-                }
-                /* Vectors decay */
-                critter->vector.y /= 1.5;
-                critter->vector.x /= 1.5;
-                /* Movement logic */
-                if (critter->species == OBJ_HELICOPTER)
-                    helicopter_movement (critter, 0);
-                else if (critter->species == OBJ_BAT)
-                    bat_movement (critter, 0);
-                else
-                    air_critter_movement (critter);
-            }
-        }
-        draw_critter (critter);
-        list = list->next;
-    }
-}
-
-/** Ground critter movement logic (this is used by all ground critters) **/
-static void ground_critter_movement (struct Critter * critter)
-{
-    int dx, dy;
-    struct Ship *ship;
-    if (critter->carried == NULL) {
-        if (critter->x2 == 0) {
-            do {
-                dx = rand () % 50;
-                if ((rand () & 0x01) == 0)
-                    dx = 0 - dx;
-            } while (dx == 0);
-            critter->x2 = dx;
-        }
-        if (critter->x2 < 0) {
-            critter->x2++;
-            critter->x--;
-            if (critter->x < 10) {
-                critter->x++;
-                critter->x2 = 10;
-            }
-            dy = find_nearest_terrain (critter->x, critter->y,
-                                       critter->rect.h);
-            if (dy == -1) {
-                critter->x++;
-                critter->x2 = 0;
-            } else
-                critter->y = dy;
         } else {
-            critter->x2--;
-            critter->x++;
-            if (critter->x > lev_level.width - 10) {
-                critter->x--;
-                critter->x2 = -10;
-            }
-            dy = find_nearest_terrain (critter->x, critter->y,
-                                       critter->rect.h);
-            if (dy == -1) {
-                critter->x--;
-                critter->x2 = 0;
-            } else
-                critter->y = dy;
+            critter->walker.walkspeed = 1;
         }
-    }
-    /* Ground critters can be picked up */
-    if (critter->carried)
-        ship = hit_ship (critter->x, critter->y, NULL, 25);
-    else
-        ship =
-            hit_ship (critter->x, critter->y, NULL,
-                      (critter->species == OBJ_SOLDIER) ? 5 : 13);
-    if (ship) {
-        if (critter->carried
-            || (critter->carried == NULL && ship->carrying == 0
-                && ship->visible)) {
-            critter->x = ship->x - critter->rect.w / 2;
-            critter->y = ship->y - critter->rect.h;
-            critter->carried = ship;
-            critter->vector.y = 0;
-            ship->carrying = 1;
-        }
+        critter->ff--;
+        critter->timer = 1;
     } else {
-        if (critter->carried) {
-            critter->carried->carrying = 0;
-            critter->carried = NULL;
-        }
+        critter->walker.walkspeed = 1;
+        critter->timerfunc = gc_dosomething;
+        critter->timer = 2;
     }
 
 }
 
-/*** Critter shooting ***/
-static void critter_shoot(struct Critter *critter,int targx,int targy,double inaccuracy) {
-    Projectile *p;
-    double a;
-    int x,y;
-
-    x=critter->x+critter->rect.w/2;
-    y=critter->y+critter->rect.h/2;
-    a = atan2(targx - x, targy - y)+inaccuracy;
-
-    p = make_projectile(x+sin(a)*3.0,y+cos(a)*3.0,
-            makeVector(-sin(a)*1.25, -cos(a)*1.25));
-    p->type=Handgun;
-    p->primed = 1;
-    add_projectile (p);
+/* A bird dies in a splash of blood and feathers */
+static void bird_die(struct Critter *critter) {
+    add_splash(critter->physics.x, critter->physics.y,5.0, 16,
+            critter->physics.vel,make_blood);
+    add_splash(critter->physics.x, critter->physics.y,3.0, 24,
+            critter->physics.vel,make_feather);
+    playwave_3d (WAV_CRITTER2, critter->physics.x, critter->physics.y);
 }
 
-/** Ground critter attack logic (this is used by Infantry) **/
-static void ground_critter_attack (struct Critter * critter) {
-    struct dllist *cl;
-    double f1;
-    int i1;
-    /* Attack player */
-    i1 = find_nearest_player (critter->x, critter->y, critter->owner, &f1);
-    if (i1>=0 && f1 < 120 && (players[i1].ship->visible || players[i1].ship->tagged)
-        && players[i1].ship->y<critter->y) {
-        critter_shoot(critter,players[i1].ship->x,players[i1].ship->y,0);
-        critter->timer = 5;
-    } else {                    /* Attack helicopters */
-        cl = critters;
-        while (cl) {
-            struct Critter *clc=cl->data;
-            if (clc->species == OBJ_HELICOPTER
-                && player_teams[clc->owner] !=
-                player_teams[critter->owner]
-                && clc->y > critter->y) {
-                if (critter->y - clc->y < 100
-                    && abs (clc->x - critter->x) < 90) {
-                    critter_shoot(critter,clc->x,clc->y,(rand()%5)/10.0);
-                    critter->timer = 5;
-                    break;
-                }
-            }
-            cl = cl->next;
+/* Helicopters explode */
+static void helicopter_die(struct Critter *critter) {
+    spawn_clusters (critter->physics.x + critter->gfx_rect.w / 2,
+                        critter->physics.y + critter->gfx_rect.h / 2,
+                        5.6, 6, make_bullet);
+}
+
+/* Ground critter dies and alerts others nearby */
+static void gc_die(struct Critter *critter) {
+    struct dllist *lst=critter_list;
+    splatter(critter);
+    while(lst) {
+        struct Critter *c=lst->data;
+        if(c!=critter && c->type==GROUNDCRITTER &&
+                fabs(c->physics.x-critter->physics.x)<250 &&
+                fabs(c->physics.y-critter->physics.y)<250)
+        {
+            if(c->physics.x<critter->physics.x)
+                c->walker.walking = -1;
+            else
+                c->walker.walking = 1;
+            c->ff = 15 + rand()%30;
+            c->timerfunc = gc_flee;
+            c->timer = 0;
         }
+        lst=lst->next;
     }
 }
 
-/** Air and water critter movement logic (this is used by birds and fish) **/
-static void air_critter_movement (struct Critter * critter)
-{
-    int dx, dy;
-    dx = critter->x - critter->x2;
-    dy = critter->y - critter->y2;
-    if ((dx > -5 && dx < 5) && (dy > -5 && dy < 5))
-        recalc_target (critter);
-    if (critter->x > critter->x2)
-        critter->x -= 2;
-    else
-        critter->x += 2;
-    if (critter->y > critter->y2)
-        critter->y -= 2;
-    else
-        critter->y += 2;
-}
+/* Air/water critter timer function: search a new target to go to */
+static void ac_searchtarget(struct Critter *critter) {
+    unsigned int loops=0;
+    int newx,newy,tmp;
+    int oldx = Round(critter->physics.x);
+    int oldy = Round(critter->physics.y);
 
-/** Bat movement logic **/
-static void bat_movement (struct Critter * critter, int hitwall)
-{
-    int dx, dy, p, b;
-    int rx, ry;
-    double f;
-    Vector v;
-    rx = critter->x + critter->rect.w / 2;
-    ry = critter->y + critter->rect.h / 2;
-    if (critter->carried
-        && (lev_level.solid[rx][critter->y] == TER_FREE
-            || lev_level.solid[rx][critter->y] == TER_TUNNEL))
-        critter->angry = 1;
-    if (critter->angry && critter->carried) {   /* Just woke up */
-        critter->carried = 0;
-        critter->frame = 0;
-    }
-    p = find_nearest_player (rx, ry, critter->owner, &f);
-    if (f < 60) {
-        dx = players[p].ship->x - rx;
-        dy = players[p].ship->y - ry;
-        if (f < 20 && critter->carried == 0 && bat_attack && players[p].ship) {
-            /* Bat attack! */
-            for (b = 0; b < level_settings.bats; b++) {
-                if (crit_bat_attack[b].me == critter
-                    && crit_bat_attack[b].end)
-                    break;
-                if (crit_bat_attack[b].end == 0) {
-                    int dx, dy;
-                    dx = cam_rects[p].w/2 - rand () % cam_rects[p].w;
-                    dy = cam_rects[p].h/2 - rand () % cam_rects[p].h;
-                    crit_bat_attack[b].targ.x = lev_rects[p].x + dx;
-                    crit_bat_attack[b].targ.y = lev_rects[p].y + dy;
-                    crit_bat_attack[b].src.x = 0;
-                    crit_bat_attack[b].src.y = 0;
-                    crit_bat_attack[b].src.w = bat_attack->w;
-                    crit_bat_attack[b].src.h = bat_attack->h;
-                    if (dx < 0) {
-                        crit_bat_attack[b].src.x -= dx;
-                        crit_bat_attack[b].src.w = bat_attack->w + dx;
-                        crit_bat_attack[b].targ.x -= dx;
-                    } else if(dx+bat_attack->w>cam_rects[p].w) {
-                        crit_bat_attack[b].src.w -= dx + bat_attack->w - cam_rects[p].w;
-                    }
-                    if (dy < 0) {
-                        crit_bat_attack[b].src.y = -dy;
-                        crit_bat_attack[b].src.h = bat_attack->h + dy;
-                        crit_bat_attack[b].targ.y -= dy;
-                    } else if(dy+bat_attack->h>cam_rects[p].h) {
-                        crit_bat_attack[b].src.h -= dy + bat_attack->h - cam_rects[p].h;
-                    }
-                    crit_bat_attack[b].me = critter;
-                    crit_bat_attack[b].end = 10;
-                    break;
-                }
-            }
-        }
-    } else {
-        dx = critter->x2 - critter->x;
-        dy = critter->y2 - critter->y;
-    }
-    if (hitwall) {
-        if (hit_solid (rx, critter->y + 1) || critter->angry)
-            hitwall = 2;
-        else {
-            critter->carried = (struct Ship *) 1;
-            critter->frame = BAT_FRAMES - 1;
-            critter->vector.x = 0;
-            critter->vector.y = 0;
-            return;
-        }
-    }
-    if (hitwall == 2 || ((dx > -5 && dx < 5) && (dy > -5 && dy < 5))) {
-        do {
-            do {
-                dx = 120 - rand () % 240;
-            } while (critter->x + dx >= lev_level.width
-                     || critter->x + dx <= 0);
-            do {
-                dy = 120 - rand () % 240;
-            } while (critter->y + dy >= lev_level.height
-                     || critter->y + dy <= 0);
-        } while (lev_level.solid[critter->x + dx][critter->y + dy] !=
-                 TER_FREE);
-        for (p = 0; p < 100; p++) {     /* Bats seek sleeping places */
-            if (critter->y + dy - p < 10)
-                break;
-            if (hit_solid
-                (critter->x + (critter->rect.w / 2) + dx,
-                 critter->y + dy - p) > 0) {
-                dy -= p;
-                break;
-            }
-        }
-        critter->x2 = critter->x + dx;
-        critter->y2 = critter->y + dy;
-    }
-    critter->angle = atan2 (dx, dy);
-    v.x = sin (critter->angle);
-    v.y = cos (critter->angle);
-    critter->vector = addVectors (&critter->vector, &v);
-}
-
-/** Helicopter movement logic **/
-static void helicopter_movement (struct Critter * critter, int recalc)
-{
-    int dx, dy, p;
-    double f;
-    Vector v;
-    p = find_nearest_player (critter->x, critter->y, critter->owner, &f);
-    if (f < 200) {
-        if (f > 30) {
-            dx = players[p].ship->x - critter->x;
-            dy = players[p].ship->y - critter->y;
-        } else {
-            dx = critter->x - players[p].ship->x;
-            dy = critter->y - players[p].ship->y;
-        }
-    } else {
-        dx = critter->x2 - critter->x;
-        dy = critter->y2 - critter->y;
-    }
-    if (recalc || ((dx > -5 && dx < 5) && (dy > -5 && dy < 5))) {
-        do {
-            do {
-                dx = 120 - rand () % 240;
-            } while (critter->x + dx >= lev_level.width
-                     || critter->x + dx <= 0);
-            do {
-                dy = 120 - rand () % 240;
-            } while (critter->y + dy >= lev_level.height
-                     || critter->y + dy <= 0);
-        } while (lev_level.solid[critter->x + dx][critter->y + dy] !=
-                 TER_FREE);
-        critter->x2 = critter->x + dx;
-        critter->y2 = critter->y + dy;
-    }
-    critter->angle = atan2 (dx, dy);
-    v.x = sin (critter->angle);
-    v.y = cos (critter->angle);
-    critter->vector = addVectors (&critter->vector, &v);
-}
-
-/** Air critter attack logic (this is used by helicopters) **/
-static void air_critter_attack (struct Critter * critter) {
-    struct dllist *cl = NULL;
-    int i1, p;
-    double f1;
-    i1 = find_nearest_player (critter->x, critter->y, critter->owner, &f1);
-    if (f1 < 160 && (players[i1].ship->visible || players[i1].ship->tagged)
-        && players[i1].ship) {
-        critter_shoot(critter,players[i1].ship->x, players[i1].ship->y,0);
-        critter->timer = 5;
-    } else { /* No ships around ? How about infantry ? */
-        cl = critters;
-        while (cl) {
-            struct Critter *clc=cl->data;
-            if (clc->species == OBJ_SOLDIER
-                && player_teams[clc->owner] !=
-                player_teams[critter->owner]) {
-                if (clc->y < critter->y) {
-                    cl = cl->next;
-                    continue;
-                }
-                if (clc->y - critter->y < 120
-                    && abs (clc->x - critter->x) < 90) {
-                    critter_shoot(critter,clc->x,clc->y,(rand()%5)/10.0);
-                    critter->timer = 5;
-                    break;
-                }
-            }
-            cl = cl->next;
-        }
-        if (cl == NULL) { /* Ok, how about pilots */
-            p = find_nearest_pilot(critter->x,critter->y,critter->owner,&f1);
-            if(p>=0 && f1<=100.0) {
-                critter_shoot(critter,players[p].pilot.x,players[p].pilot.y,(rand()%5)/10.0);
-                critter->timer = 6;
-            }
-        }
-    }
-}
-
-/** Draw critters **/
-static inline void draw_critter (struct Critter * critter)
-{
-    SDL_Rect rect, rect2;
-    SDL_Surface *sprite;
-    int px, py, p;
-    sprite = critter_gfx[critter->species - FIRST_CRITTER][critter->frame];
-    for (p = 0; p < 4; p++) {
-        if (players[p].state==ALIVE || players[p].state==DEAD) {
-            rect.x = critter->x - cam_rects[p].x + lev_rects[p].x;
-            rect.y = critter->y - cam_rects[p].y + lev_rects[p].y;
-            if ((rect.x > lev_rects[p].x - critter->rect.w
-                 && rect.x < lev_rects[p].x + cam_rects[p].w)
-                && (rect.y > lev_rects[p].y - critter->rect.h
-                    && rect.y < lev_rects[p].y + cam_rects[p].h)) {
-                rect2 =
-                    cliprect (rect.x, rect.y, critter->rect.w,
-                              critter->rect.h, lev_rects[p].x, lev_rects[p].y,
-                              lev_rects[p].x + cam_rects[p].w,
-                              lev_rects[p].y + cam_rects[p].h);
-                rect2.x += critter->rect.x;
-                /*rect2.y+=critter->rect.y; */
-                if (rect.x < lev_rects[p].x)
-                    rect.x = lev_rects[p].x;
-                if (rect.y < lev_rects[p].y)
-                    rect.y = lev_rects[p].y;
-                if (critter->species == OBJ_SOLDIER) {
-                    if (players[p].ship == NULL) {
-                        px = players[p].pilot.x;
-                        py = players[p].pilot.y;
-                    } else {
-                        px = players[p].ship->x;
-                        py = players[p].ship->y;
-                    }
-                    if (abs (critter->x - px) < 70
-                        && abs (critter->y - py) < 70)
-                        SDL_BlitSurface (sprite, &rect2, screen, &rect);
-                } else
-                    SDL_BlitSurface (sprite, &rect2, screen, &rect);
-            }
-        }
-    }
-}
-
-/*** Draw the bat attack ***/
-void draw_bat_attack ()
-{
-    int b;
-    if (!bat_attack)
-        return;
-    for (b = 0; b < level_settings.bats; b++) {
-        if (crit_bat_attack[b].end == 0)
-            continue;
-        crit_bat_attack[b].end--;
-        SDL_BlitSurface (bat_attack, &crit_bat_attack[b].src, screen,
-                         &crit_bat_attack[b].targ);
-    }
-}
-
-static void recalc_target (struct Critter * critter)
-{
-    unsigned char terrain = 0;
-    int uh_oh = 0;
-    switch (critter->type) {
-    case FlyingCritter:
-        terrain = TER_FREE;
-        break;
-    case GroundCritter:
-        terrain = TER_GROUND;
-        break;
-    case WaterCritter:
-        terrain = TER_WATER;
-        break;
-    }
+    /* Search for a new target that doesn't go thru solid terrain */
     do {
-        do {
-            if (uh_oh == 100)
-                return;
-            critter->x2 = critter->x + ((rand () % 100) - 50);
-            critter->y2 = critter->y + ((rand () % 100) - 50);
-            uh_oh++;
-        } while (critter->x2 < 10 || critter->y2 < 10
-                 || critter->x2 > lev_level.width - 10
-                 || critter->y2 > lev_level.height - 10);
-    } while (lev_level.solid[critter->x2][critter->y2] != terrain);
+        newx = oldx + 200-rand()%400;
+        newy = oldy + 200-rand()%400;
+    } while(((critter->type==AIRCRITTER?is_water(newx,newy):is_free(newx,newy))
+            || hit_solid_line(oldx,oldy,newx,newy,&tmp,&tmp)
+            != (critter->type==AIRCRITTER?TER_FREE:TER_WATER))
+            && loops++<100);
+
+    critter->flyer.targx = newx;
+    critter->flyer.targy = newy;
+    
+    critter->timer = 2*GAME_SPEED + rand()%(5*GAME_SPEED);
 }
 
-int hit_critter (int x, int y, ProjectileType proj)
-{
-    struct dllist *list = critters;
-    while (list) {
-        struct Critter *critter=list->data;
-        if (x >= critter->x && y >= critter->y)
-            if (x <= critter->x + critter->rect.w
-                && y <= critter->y + critter->rect.h) {
-                if (proj == Plastique) {
-                    critter->explode = 1;
-                } else {
-                    if (!
-                        (critter->species == OBJ_BAT
-                         && critter->carried))
-                        critter->health--;
-                    critter->angry = CRITTER_ANGRY;
-                    if (proj == Spear || proj == Acid)
-                        critter->health = 0;
-                    if (critter->health == 0)
-                        kill_critter (list);
-                    else if (critter->species != OBJ_HELICOPTER)
-                        splatter (critter->x, critter->y,
-                                  SomeBlood);
-                }
-                return 1;
+/* Shoot */
+static int critter_shoot(struct Critter *critter, double angle) {
+    double x = critter->physics.x + cos(angle)* critter->physics.radius;
+    double y = critter->physics.y + sin(angle)* critter->physics.radius;
+    if(is_solid(Round(x),Round(y))) return 0;
+    Vector mvel = {cos(angle) * 10, sin(angle)*10};
+    add_projectile(make_bullet(x,y,addVectors(critter->physics.vel,mvel)));
+    return 1;
+};
+
+/* Find the nearest enemy critter */
+/* Critters are identified by their graphics */
+static struct Critter *find_enemy_critter(float x,float y,int owner, double *distance,SDL_Surface **gfx) {
+    struct dllist *ptr = critter_list;
+    struct Critter *nearest = NULL;
+    double dist = 999999;
+    while(ptr) {
+        struct Critter *e = ptr->data;
+        if(e->gfx == gfx && same_team(e->owner,owner)==0) {
+            double d=hypot(e->physics.x-x,e->physics.y-y);
+            if(d<dist) {
+                dist=d;
+                nearest=e;
             }
-        list = list->next;
+        }
+        ptr=ptr->next;
+    }
+    if(distance)
+        *distance = dist;
+    return nearest;
+}
+
+/* Search for a target to shoot at */
+/* Set airborne to zero to limit targets to those that can be easily */
+/* shot at from ground */
+static int find_target(float x, float y, int owner, float *targx, float *targy,
+        double *dist, int airborne) {
+    double distance;
+    int eplr;
+    struct Critter *ec;
+    /* First priority, enemy ships */
+    eplr = find_nearest_enemy(x,y, owner, &distance);
+    if(distance < 120.0) {
+        *targx = players[eplr].ship->physics.x;
+        *targy = players[eplr].ship->physics.y;
+        if(dist) *dist = distance;
+        return 1;
+    }
+    /* Second priority, enemy helicopters */
+    ec = find_enemy_critter(x,y, owner ,&distance,helicopter_gfx);
+    if(distance < 120.0) {
+        *targx = ec->physics.x;
+        *targy = ec->physics.y;
+        if(dist) *dist = distance;
+        return 1;
+    }
+    if(airborne) {
+        /* Third priority, airborne only, enemy soldiers */
+        ec = find_enemy_critter(x,y, owner,&distance,soldier_gfx);
+        if(distance < 120.0) {
+            *targx = ec->physics.x;
+            *targy = ec->physics.y;
+            if(dist) *dist = distance;
+            return 1;
+        }
+        /* Fourth priority, airborne only, enemy pilots */
+        eplr = find_nearest_pilot(x,y,owner,&distance);
+        if(distance < 120.0) {
+            *targx = players[eplr].pilot.walker.physics.x;
+            *targy = players[eplr].pilot.walker.physics.y;
+            if(dist) *dist = distance;
+            return 1;
+        }
     }
     return 0;
 }
 
-int find_nearest_terrain (int x, int y, int h)
+/* Search for enemies and shoot */
+static void soldier_animate(struct Critter *soldier) {
+    if(soldier->cooloff>0)
+        soldier->cooloff--;
+    else if(soldier->ff==0 || soldier->cornered>60.0) {
+        float targx,targy;
+        if(find_target(soldier->physics.x, soldier->physics.y,
+                    soldier->owner, &targx, &targy, NULL, 0))
+        {
+            if(critter_shoot(soldier,atan2(targy-soldier->physics.y,targx-soldier->physics.x))) {
+                soldier->walker.walking = 0;
+                if(soldier->cornered>70.0) /* Shoot like mad when cornered */
+                    soldier->cooloff = 0.15*GAME_SPEED;
+                else
+                    soldier->cooloff = 0.7*GAME_SPEED;
+            }
+        }
+    }
+}
+
+/* Search for enemies and shoot */
+static void helicopter_animate(struct Critter *hc) {
+    if(hc->cooloff>0)
+        hc->cooloff--;
+    else if(hc->ff==0) {
+        double distance;
+        float targx,targy;
+        if(find_target(hc->physics.x,hc->physics.y, hc->owner, &targx, &targy,
+                    &distance, 1))
+        {
+            if(distance>60.0) {
+                hc->flyer.targx = targx;
+                hc->flyer.targy = targy;
+            }
+            if(distance<150.0) {
+                if(critter_shoot(hc,atan2(targy-hc->physics.y,targx-hc->physics.x))) {
+                    hc->cooloff = 0.7*GAME_SPEED;
+                }
+            }
+        }
+    }
+}
+
+/* Bats seek out a place to perch */
+static void bat_seekground(struct Critter *bat) {
+    double a = (rand()%3141)/1000.0;
+    int targx = Round(bat->physics.x) + cos(a)*150;
+    int targy = Round(bat->physics.y) - sin(a)*150;
+
+    hit_solid_line(Round(bat->physics.x),Round(bat->physics.y),
+            targx,targy,&targx,&targy);
+    bat->flyer.targx = targx;
+    bat->flyer.targy = targy;
+}
+
+/* Bat attack. Set position on player viewport where bat image */
+/* will be drawn in draw_bat_attack() */
+static void bat_harass_player(struct Critter *bat, int plr) {
+    int b=0;
+    for(;b<sizeof(crit_bat_attack)/sizeof(struct BatAttack);b++) {
+        if(crit_bat_attack[b].me == bat && crit_bat_attack[b].end)
+            break;
+        if (crit_bat_attack[b].end == 0) {
+            int dx, dy;
+            dx = cam_rects[plr].w/2 - rand () % cam_rects[plr].w;
+            dy = cam_rects[plr].h/2 - rand () % cam_rects[plr].h;
+            crit_bat_attack[b].targ.x = viewport_rects[plr].x + dx;
+            crit_bat_attack[b].targ.y = viewport_rects[plr].y + dy;
+            crit_bat_attack[b].src.x = 0;
+            crit_bat_attack[b].src.y = 0;
+            crit_bat_attack[b].src.w = bat_attack->w;
+            crit_bat_attack[b].src.h = bat_attack->h;
+            if (dx < 0) {
+                crit_bat_attack[b].src.x -= dx;
+                crit_bat_attack[b].src.w = bat_attack->w + dx;
+                crit_bat_attack[b].targ.x -= dx;
+            } else if(dx+bat_attack->w>cam_rects[plr].w) {
+                crit_bat_attack[b].src.w -= dx + bat_attack->w - cam_rects[plr].w;
+            }
+            if (dy < 0) {
+                crit_bat_attack[b].src.y = -dy;
+                crit_bat_attack[b].src.h = bat_attack->h + dy;
+                crit_bat_attack[b].targ.y -= dy;
+            } else if(dy+bat_attack->h>cam_rects[plr].h) {
+                crit_bat_attack[b].src.h -= dy + bat_attack->h - cam_rects[plr].h;
+            }
+            crit_bat_attack[b].me = bat;
+            crit_bat_attack[b].end = 10;
+            break;
+        }
+    }
+}
+
+/* Bats stay mainly still unless disturbed */
+static void bat_animate(struct Critter *bat) {
+    if(is_breathable(Round(bat->physics.x),Round(bat->physics.y)-1)) {
+        /* Seek out nearby ships or ground */
+        double d;
+        struct Ship *targ = find_nearest_ship(bat->physics.x,bat->physics.y,NULL,&d);
+        if(d<200.0) {
+            bat->flyer.targx = targ->physics.x;
+            bat->flyer.targy = targ->physics.y;
+            if(d<20.0) {
+                int p=0;
+                for(;p<4;p++) {
+                    if(players[p].ship == targ) {
+                        bat_harass_player(bat,p);
+                        break;
+                    }
+                }
+            }
+        } else if(bat->timer<0) {
+            bat->timer = 2*GAME_SPEED + rand()%(2*GAME_SPEED);
+        }
+    }
+}
+
+/* Make a basic critter skeleton */
+static struct Critter *make_base(SDL_Surface **gfx) {
+    struct Critter *c = malloc(sizeof(struct Critter));
+    if(!c) {
+        perror(__func__);
+        return NULL;
+    }
+
+    c->gfx = gfx;
+    c->gfx_rect.x = 0;
+    c->gfx_rect.y = 0;
+    c->gfx_rect.w = gfx[0]->w;
+    c->gfx_rect.h = gfx[0]->h;
+    c->frame = 0;
+    c->bidir = 1;
+
+    c->health = 0.01;
+    c->owner = -1;
+    c->ship = 1;
+    c->frozen = 0;
+
+    c->timer=-1;
+    c->ff = 0;
+    c->cooloff = 0;
+    c->cornered = 0;
+
+    c->animate = NULL;
+    
+    return c;
+}
+
+/* Create a basic ground critter */
+static struct Critter *make_base_gc(SDL_Surface **gfx,float x,float y) {
+    struct Critter *c = make_base(gfx);
+    c->type = GROUNDCRITTER;
+    init_walker(&c->walker);
+    c->physics.x = x;
+    c->physics.y = y;
+    c->physics.radius = 6;
+    c->physics.mass = 12;
+    c->walker.walking = rand()%2?-1:1;
+    c->walker.walkspeed = 1;
+    c->walker.slope = 5;
+    c->ship = 0;
+
+    c->timer = 1;
+    c->timerfunc = gc_dosomething;
+    c->die = gc_die;
+    return c;
+}
+
+/* Make a cow */
+static struct Critter *make_cow(float x,float y) {
+    struct Critter *cow = make_base_gc(cow_gfx,x,y);
+    cow->frames = cow_frames;
+    return cow;
+}
+
+/* Make a soldier */
+static struct Critter *make_soldier(float x,float y,int owner) {
+    struct Critter *soldier = make_base_gc(soldier_gfx,x,y);
+    soldier->frames = soldier_frames;
+    soldier->walker.slope=10;
+    soldier->gfx_rect.w/=4;
+    soldier->gfx_rect.x = soldier->gfx_rect.w*owner;
+    soldier->animate = soldier_animate;
+    soldier->owner=owner;
+
+    return soldier;
+}
+
+/* Create a basic air critter */
+static struct Critter *make_base_ac(SDL_Surface **gfx,float x,float y) {
+    struct Critter *c = make_base(gfx);
+    init_flyer(&c->flyer,AIRBORNE);
+    c->type = AIRCRITTER;
+    c->physics.x = x;
+    c->physics.y = y;
+
+    c->timer = 0;
+    c->timerfunc = ac_searchtarget;
+    return c;
+}
+
+/* Create a bird */
+static struct Critter *make_bird(float x,float y) {
+    struct Critter *bird = make_base_ac(bird_gfx,x,y);
+    bird->frames = bird_frames;
+    bird->bidir = 0;
+    bird->die = bird_die;
+    return bird;
+}
+
+/* Create a bat */
+static struct Critter *make_bat(float x,float y) {
+    struct Critter *bat = make_base_ac(bat_gfx,x,y);
+    bat->health = 0.05;
+    bat->frames = bat_frames;
+    bat->bidir = 0;
+    bat->flyer.bat = 1;
+    bat->ship = 0;
+    bat->timerfunc = bat_seekground;
+    bat->animate = bat_animate;
+    bat->die = splatter;
+    return bat;
+}
+
+/* Create a helicopter */
+static struct Critter *make_helicopter(float x,float y,int owner) {
+    struct Critter *hc = make_base_ac(helicopter_gfx,x,y);
+    hc->frames = helicopter_frames;
+    hc->health = 0.2;
+    hc->bidir = 1;
+    hc->gfx_rect.w/=4;
+    hc->gfx_rect.x = hc->gfx_rect.w*owner;
+    hc->animate = helicopter_animate;
+    hc->owner = owner;
+    hc->ship = 0;
+    hc->die = helicopter_die;
+    return hc;
+}
+
+/* Create a basic water critter */
+static struct Critter *make_base_wc(SDL_Surface **gfx,float x,float y) {
+    struct Critter *c = make_base(gfx);
+    init_flyer(&c->flyer,UNDERWATER);
+    c->flyer.speed = 0.5;
+    c->type = WATERCRITTER;
+    c->physics.x = x;
+    c->physics.y = y;
+
+    c->timer = 0;
+    c->timerfunc = ac_searchtarget;
+    return c;
+}
+
+/* Create a fish */
+static struct Critter *make_fish(float x,float y) {
+    struct Critter *fish = make_base_wc(fish_gfx,x,y);
+    fish->frames = fish_frames;
+    fish->bidir = 1;
+    fish->die = splatter;
+    return fish;
+}
+
+/* Find a random starting position. If ground=-+1, coordinates
+ * will be at the interface of walkable terrain and the medium.
+ * x and y will be set to the discovered coordinates.
+ * Returns nonzero if no suitable coordinates were found.
+ */
+static int random_coords(Uint8 medium, int ground,float *xcoord,float *ycoord) {
+    unsigned int loops=0;
+    while(loops++<1000) {
+        int x = rand()%lev_level.width;
+        int y = rand()%lev_level.height;
+        if(lev_level.solid[x][y]==medium) {
+            if(ground) {
+                int r=0;
+                for(r=0;r<200;r++,y+=ground) {
+                    if(y<0 || y>=lev_level.height ||
+                            lev_level.solid[x][y]!=medium) break;
+                }
+                if(is_walkable(x,y)==0) continue;
+            }
+            *xcoord = x;
+            *ycoord = y;
+            return 0;
+        }
+    }
+    return 1;
+}
+
+/* Make a critter */
+struct Critter *make_critter (ObjectType species, float x, float y, int owner)
 {
-    int r, ry;
-    ry = y + h;
-    for (r = 0; r < 15; r++) {
-        if (ry + r - 1 < lev_level.height && is_walkable (x, ry + r)
-            && (lev_level.solid[x][ry + r - 1] == TER_FREE
-                || lev_level.solid[x][ry + r - 1] == TER_TUNNEL
-                || lev_level.solid[x][ry + r - 1] == TER_WALKWAY))
-            return y + r;
-        else if (ry - r - 1 > 0 && is_walkable (x, ry - r)
-                 && (lev_level.solid[x][ry - r - 1] == TER_FREE
-                     || lev_level.solid[x][ry - r - 1] == TER_TUNNEL
-                     || lev_level.solid[x][ry - r - 1] == TER_WALKWAY))
-            return y - r;
+    struct Critter *newcritter = NULL;
+    switch(species) {
+        case OBJ_COW: newcritter = make_cow(x,y); break;
+        case OBJ_SOLDIER: newcritter = make_soldier(x,y,owner); break;
+        case OBJ_BIRD: newcritter = make_bird(x,y); break;
+        case OBJ_BAT: newcritter = make_bat(x,y); break;
+        case OBJ_HELICOPTER: newcritter = make_helicopter(x,y,owner); break;
+        case OBJ_FISH: newcritter = make_fish(x,y); break;
+        default:
+           fprintf(stderr,"make_critter(%d,%.1f,%.1f,%d): Unhandled object type.\n",species, x, y, owner);
     }
-    return -1;
+    if(newcritter==NULL) return NULL;
+
+
+    /* Find a place for the critter if not specified explicitly */
+    if (x < 0 || y < 0) {
+        int medium,ground;
+        if(newcritter->type==WATERCRITTER) {
+            medium = TER_WATER;
+            ground = 0;
+        } else {
+            medium = TER_FREE;
+            if(newcritter->type==GROUNDCRITTER)
+                ground=1;
+            else if(species==OBJ_BAT)
+                ground=-1;
+            else
+                ground=0;
+        }
+        if(random_coords(medium,ground,&newcritter->physics.x,
+                    &newcritter->physics.y)) {
+            fprintf(stderr,"Couldn't find a place for a %s.\n", obj2str(species));
+            free (newcritter);
+            return NULL;
+        }
+    }
+    return newcritter;
 }
 
-#if 0
-int find_nearest_terrain(int x,int y,int h) {
-	  int r;
-	    for(r=0;r<15;r++) {
-		        if(is_walkable(x,y+h+r) && lev_level.solid[x][y+h+r-1]==TER_FREE) return y+r;
-			    else if(is_walkable(x,y+h-r) && lev_level.solid[x][y+h-r-1]==TER_FREE) return y-r;
-			      }
-	      return -1;
-}
-#endif
-
+/* Kill a critter */
 static struct dllist *kill_critter (struct dllist *list) {
-    struct Critter *critter=list->data;
     struct dllist *next=list->next;
-    if (critter->species == OBJ_HELICOPTER || critter->explode) {
-        spawn_clusters (critter->x + critter->rect.w / 2,
-                        critter->y + critter->rect.h / 2,
-                        (critter->explode) ? 16 : 6, Cannon);
-        if (critter->explode)
-            spawn_clusters (critter->x, critter->y, 6,
-                            Napalm);
-    } else {
-        splatter (critter->x +
-                  critter_gfx[critter->species][0]->w / 2,
-                  critter->y +
-                  critter_gfx[critter->species][0]->h / 2, Blood);
-        if (critter->species == OBJ_BIRD)
-            splatter (critter->x +
-                      critter_gfx[critter->species][0]->w / 2,
-                      critter->y +
-                      critter_gfx[critter->species][0]->h / 2,
-                      LotsOfFeathers);
-    }
-    if (critter->species == OBJ_COW)
-        playwave_3d (WAV_CRITTER1, critter->x, critter->y);
-    else if (critter->species == OBJ_BIRD)
-        playwave_3d (WAV_CRITTER2, critter->x, critter->y);
-    else if (critter->species == OBJ_SOLDIER)
-        soldier_count[critter->owner]--;
-    else if (critter->species == OBJ_HELICOPTER)
-        helicopter_count[critter->owner]--;
-    if (critter->carried > (struct Ship *) 0x1)
-        critter->carried->carrying = 0;
+    struct Critter *c = list->data;
 
-    free (critter);
-    if(list==critters)
-        critters=dllist_remove(list);
+    c->die(c);
+
+    if(c->gfx == soldier_gfx && c->owner>=0)
+        soldier_count[c->owner]--;
+    else if(c->gfx == helicopter_gfx && c->owner>=0)
+        helicopter_count[c->owner]--;
+
+    free (list->data);
+
+    if(list==critter_list)
+        critter_list=dllist_remove(list);
     else
         dllist_remove(list);
     return next;
 }
 
-void splatter (int x, int y, SplatterType type)
-{
-    Projectile *sp;
-    double angle, incr, r = 1.0, d;
-    if (type == Blood)
-        r = 17.0;
-    else if (type == SomeBlood)
-        r = 6.0;
-    else if (type == Feather)
-        r = 3.0;
-    else if (type == LotsOfFeathers)
-        r = 6.0;
-    incr = (2.0 * M_PI) / r;    /* How badly it gets splattered */
-    angle = 0;
-    d = (rand () % 314) / 100.0;
-    while (angle < 2.0 * M_PI) {
-        r = (rand () % 6) / 10.0;
-        sp = make_projectile (x, y,
-                              makeVector (sin (angle + r + d),
-                                          cos (angle + r + d)));
-        sp->vector.x /= 2.5;
-        sp->vector.y /= 2.5;
-        sp->type = Decor;
-        sp->primed = 3;         /* So we seem them at least for a while */
-        sp->wind_affects = 1;
-        switch (type) {
-        case Blood:
-        case SomeBlood:
-            sp->gravity = &splt_gravity;
-            sp->color = col_red;
-            break;
-        case Feather:
-        case LotsOfFeathers:
-            sp->gravity = &splt_gravity2;
-            sp->color = col_transculent;
-            sp->maxspeed = 1.0;
-            break;
+/* Add a critter to the list */
+void add_critter (struct Critter * newcritter) {
+    int kill=0;
+    /* Enforce hostile critter limits */
+    if(newcritter->gfx == soldier_gfx && game_settings.soldiers>0 &&
+            newcritter->owner>=0)
+    {
+        if(++soldier_count[newcritter->owner] >= game_settings.soldiers)
+            kill=1;
+    } else if(newcritter->gfx == helicopter_gfx && game_settings.helicopters>0
+            && newcritter->owner>=0)
+    {
+        if(++helicopter_count[newcritter->owner] >= game_settings.helicopters)
+            kill=1;
+    }
+    if(kill) {
+        struct dllist *ptr = critter_list;
+        while(ptr) {
+            struct Critter *c = ptr->data;
+            if(c->gfx == newcritter->gfx && c->owner == newcritter->owner) {
+                kill_critter(ptr);
+                break;
+            }
+            ptr=ptr->next;
         }
-        add_projectile (sp);
-        angle += incr;
+    }
+
+    /* Add critter to the list */
+    if (critter_list)
+        dllist_append(critter_list,newcritter);
+    else
+        critter_list=dllist_append(critter_list,newcritter);
+}
+
+/* Projectile hits a critter */
+void hit_critter(struct Critter *critter, struct Projectile *p) {
+    critter->health -= p->damage;
+    /* special case, snowball freezes critters */
+    if(p->color == col_snow && p->damage==0 && p->critical==0) {
+        critter->timer=-1;
+        critter->animate = NULL;
+        critter->timerfunc = NULL;
+        critter->die = shatter;
+        critter->type = INERTCRITTER;
+        critter->frozen = 1;
     }
 }
+
+/* Draw a critter on all active viewports */
+static void draw_critter (struct Critter * critter)
+{
+    int p;
+    for (p = 0; p < 4; p++) {
+        if (players[p].state==ALIVE || players[p].state==DEAD) {
+            SDL_Rect rect, rect2;
+            rect.x = critter->physics.x - critter->gfx_rect.w/2;
+            rect.y = critter->physics.y;
+            if(critter->type==GROUNDCRITTER)
+                rect.y -= critter->gfx_rect.h;
+            else
+                rect.y -= critter->gfx_rect.h/2;
+
+            rect.x = rect.x - cam_rects[p].x + viewport_rects[p].x;
+            rect.y = rect.y - cam_rects[p].y + viewport_rects[p].y;
+            if ((rect.x > viewport_rects[p].x - critter->gfx_rect.w
+                 && rect.x < viewport_rects[p].x + cam_rects[p].w)
+                && (rect.y > viewport_rects[p].y - critter->gfx_rect.h
+                    && rect.y < viewport_rects[p].y + cam_rects[p].h)) {
+                rect2 =
+                    cliprect (rect.x, rect.y, critter->gfx_rect.w,
+                            critter->gfx_rect.h, viewport_rects[p].x,
+                            viewport_rects[p].y,
+                            viewport_rects[p].x + cam_rects[p].w,
+                            viewport_rects[p].y + cam_rects[p].h);
+                rect2.x += critter->gfx_rect.x;
+                rect2.y += critter->gfx_rect.y;
+                if (rect.x < viewport_rects[p].x)
+                    rect.x = viewport_rects[p].x;
+                if (rect.y < viewport_rects[p].y)
+                    rect.y = viewport_rects[p].y;
+                SDL_BlitSurface (critter->gfx[critter->frame],
+                        &rect2, screen, &rect);
+                if(critter->frozen && iceblock) {
+                    rect.x = rect.x + critter->gfx_rect.w/2 - iceblock->w/2;
+                    rect.y = rect.y + critter->gfx_rect.h/2 - iceblock->h/2;
+                    SDL_BlitSurface(iceblock, NULL, screen, &rect);
+                }
+#if 0
+                /* Debugging aid: display critter target */
+                if(critter->type!=GROUNDCRITTER) {
+                    int x = critter->flyer.targx-cam_rects[p].x;
+                    int y = critter->flyer.targy-cam_rects[p].y;
+                    if(x>0 && x<cam_rects[p].w && y>0 && y<cam_rects[p].h)
+                        putpixel(screen,x+viewport_rects[p].x,y+viewport_rects[p].y,col_red);
+                        putpixel(screen,x+2+viewport_rects[p].x,y+viewport_rects[p].y,col_red);
+                        putpixel(screen,x-2+viewport_rects[p].x,y+viewport_rects[p].y,col_red);
+                        putpixel(screen,x+viewport_rects[p].x,y+2+viewport_rects[p].y,col_red);
+                        putpixel(screen,x+viewport_rects[p].x,y-2+viewport_rects[p].y,col_red);
+                }
+#endif
+            }
+        }
+    }
+}
+
+/* Some generic ground critter animation */
+static void animate_groundcritter(struct Critter *critter) {
+    animate_walker(&critter->walker,critter->ship?1:0,&ship_list);
+    if(critter->walker.walking) {
+        int x = Round(critter->walker.physics.x);
+        int y = Round(critter->walker.physics.y);
+        x += critter->walker.walkspeed * critter->walker.walking;
+        if(find_foothold(x,y, critter->walker.slope)<0) {
+            /* Turn around if can't find foothold */
+            critter->walker.walking *= -1;
+            critter->cornered += 1;
+        }
+        /* Update animation frame */
+        critter->frame++;
+        if(critter->walker.walking>0) {
+            if(critter->frame>=critter->frames/2)
+                critter->frame=0;
+        } else {
+            if(critter->frame>=critter->frames)
+                critter->frame=critter->frames/2;
+        }
+    } else {
+        /* Reset to neutral pose */
+        if(critter->frame>=critter->frames/2)
+            critter->frame=critter->frames/2;
+        else
+            critter->frame=0;
+    }
+}
+
+/* Some generic air critter animation */
+static void animate_aircritter(struct Critter *critter) {
+    animate_flyer(&critter->flyer,critter->ship?1:0,&ship_list);
+    if(critter->physics.hitground && is_walkable(Round(critter->physics.x),Round(critter->physics.y) + (critter->flyer.bat?1:-1))==0) {
+        /* Flying critter is perched */
+        critter->frame = critter->frames-1;
+    } else {
+        critter->frame++;
+        if(critter->bidir) {
+            if(critter->physics.vel.x>0) {
+                if(critter->frame>=(critter->frames-1)/2)
+                    critter->frame=0;
+            } else {
+                if(critter->frame>=critter->frames-1)
+                    critter->frame=(critter->frames-1)/2;
+            }
+        } else {
+            if(critter->frame>=critter->frames-1)
+                critter->frame=0;
+        }
+    }
+}
+
+/* Some generic water critter animation */
+static void animate_watercritter(struct Critter *critter) {
+    animate_flyer(&critter->flyer,critter->ship?1:0,&ship_list);
+    critter->frame++;
+    if(critter->bidir) {
+        if(critter->physics.vel.x>0) {
+            if(critter->frame>=critter->frames/2)
+                critter->frame=0;
+        } else {
+            if(critter->frame>=critter->frames)
+                critter->frame=critter->frames/2;
+        }
+    } else {
+        if(critter->frame>=critter->frames)
+            critter->frame=0;
+    }
+}
+
+/* Animate critters */
+void animate_critters (void) {
+    struct dllist *list = critter_list;
+    while (list) {
+        struct Critter *critter=list->data;
+        switch(critter->type) {
+            case INERTCRITTER: animate_object(&critter->physics,1,&ship_list); break;
+            case GROUNDCRITTER: animate_groundcritter(critter); break;
+            case AIRCRITTER: animate_aircritter(critter); break;
+            case WATERCRITTER: animate_watercritter(critter); break;
+        }
+
+        /* Timer function */
+        if(critter->timer>0) critter->timer--;
+        else if(critter->timer==0) {
+            critter->timer=-1;
+            critter->timerfunc(critter);
+        }
+
+        /* Decrease feeling of claustrophobia */
+        if(critter->cornered>0)
+            critter->cornered -= 1.0/GAME_SPEED;
+
+        /* Special animation if any */
+        if(critter->animate)
+            critter->animate(critter);
+
+        /* Check if critter has been thrown against ground too hard */
+        if(critter->physics.hitground && hypot(critter->physics.hitvel.x,
+                    critter->physics.hitvel.y)> 5.0)
+        {
+            critter->health -= 0.1;
+        }
+
+        /* Kill critter if health is below 0 and/or move on to the next one */
+        if(critter->health<=0) {
+            list = kill_critter(list);
+        } else {
+            draw_critter (critter);
+            list = list->next;
+        }
+    }
+}
+
+/* Draw the bat attack */
+void draw_bat_attack ()
+{
+    int b;
+    if (!bat_attack)
+        return;
+    for (b = 0; b < sizeof(crit_bat_attack)/sizeof(struct BatAttack); b++) {
+        if (crit_bat_attack[b].end) {
+            crit_bat_attack[b].end--;
+            SDL_BlitSurface (bat_attack, &crit_bat_attack[b].src, screen,
+                             &crit_bat_attack[b].targ);
+        }
+    }
+}
+

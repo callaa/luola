@@ -1,6 +1,6 @@
 /*
- * Luola - 2D multiplayer cavern-flying game
- * Copyright (C) 2003-2005 Calle Laakkonen
+ * Luola - 2D multiplayer cave-flying game
+ * Copyright (C) 2003-2006 Calle Laakkonen
  *
  * File        : ship.h
  * Description : Ship information and animation
@@ -25,7 +25,7 @@
 #define SHIP_H
 
 #include "SDL.h"
-#include "vector.h"
+#include "physics.h"
 #include "weapon.h"
 #include "list.h"
 
@@ -41,72 +41,104 @@
 #define CRITICAL_POWER          0x80
 
 typedef enum { Grey, Red, Blue, Green, Yellow, White, Frozen } PlayerColor;
-typedef enum { NormalWeapon, SpecialWeapon, SpecialWeapon2 } WeaponClass;
 
 struct Ship {
-    double x, y;
-    PlayerColor color;
-    SDL_Surface **ship;
-    SDL_Surface *shield;
-    int anim;
-    Vector vector;
-    double angle;
-    int thrust;
-    float turn;
-    float maxspeed;
-    double health;
-    double energy;
-    int tagged;
-    Uint8 repeat_audio;
-    int carrying;
-    char onbase;
+    struct Physics physics; /* Must be the first element for inheritance */
+    PlayerColor color;  /* Player color */
+    SDL_Surface **ship; /* Ship graphic */
+    SDL_Surface *shield;/* Shield graphic */
+    int anim;           /* Counter used in some animations */
+    float angle;        /* Where the ship is facing */
+    int thrust;         /* When nonzero, engine is on */
+    float turn;         /* How fast the ship is turning */
+    float health;       /* Ship hull integrity 0.0 - 1.0 */
+    float energy;       /* Weapon energy 0.0 - 1.0 */
+    int repeat_audio;   /* Sample repeat counter used by some special weapons */
+    int carrying;       /* Is the ship carrying a critter */
     /* Mostly weapons related stuff */
-    unsigned char criticals;
-    int no_power;
-    int cooloff, special_cooloff, eject_cooloff;
-    int fire_weapon;
-    int fire_special_weapon;
-    int dead;
-    int visible;
-    int white_ship;
-    int shieldup;
-    int ghost;
-    int afterburn;
-    int frozen;
-    enum {NODART,DARTING,SPEARED} darting;
-    int repairing;
-    int antigrav;
-    struct Ship *remote_control;
-    double sweep_angle;
-    int sweeping_down;
-    WeaponType special;
-    SWeaponType standard;
+    unsigned char criticals;    /* A bitmap of critical hits */
+    int no_power;               /* Powerloss counter */
+    int cooloff, special_cooloff, eject_cooloff;    /* Cooloff counters */
+    int fire_weapon;            /* When nonzero, primary weapon is fired */
+    int fire_special_weapon;    /* As above for special weapon */
+    enum {INTACT,BROKEN,DESTROYED} state;
+    int visible;        /* Is the ship visible */
+    int white_ship;     /* Damage indicator counter */
+    struct GravityAnomaly *shieldup; /* When not NULL, shield is activated */
+    int afterburn;      /* When nonzero, afterburner is on */
+    int frozen;         /* When nonzero, ship is frozen */
+    enum {NODART,DARTING,SPEARED} darting;  /* Dart or spear */
+    int repairing;      /* When nonzero, autorepair system is active */
+    int antigrav;       /* When nonzero, gravity is being repealed */
+    struct Ship *remote_control;    /* Ship that is being remote controlled */
+    float sweep_angle;  /* Sweeping shot angle */
+    int sweeping_down;  /* Sweeping shot turning direction */
+    int standard;       /* Primary weapon */
+    int special;        /* Special weapon */
 };
 
-/* Initialization */
+/* Load ship graphics */
 extern void init_ships (LDAT *playerfile);
-extern void clean_ships (void);
+
+/* Delete all ships */
+extern void clear_ships (void);
+
+/* Create extra ships */
+struct LevelSettings;
 extern void reinit_ships (struct LevelSettings * settings);
-extern struct Ship *create_ship (PlayerColor color, SWeaponType weapon,
-                          WeaponType special);
+
+/* Create a new ship */
+extern struct Ship *create_ship (PlayerColor color, int weapon, int special);
 
 /* Animation */
 extern void animate_ships (void);
 extern void draw_ships (void);
 
-/* Handling */
-extern void ship_fire (struct Ship * ship, WeaponClass weapon);
-extern struct Ship *hit_ship (double x, double y, struct Ship *ignore, double radius);
-extern int find_nearest_player (int myX, int myY, int not_this, double *dist);
-struct Ship *find_nearest_ship (int myX, int myY, struct Ship * not_this, double *dist);
-extern signed char ship_damage (struct Ship * ship, Projectile * proj);
-extern void killship (struct Ship * ship);
+/* Find the nearest enemy ship with a player in it that is visible */
+extern int find_nearest_enemy (double myX, double myY, int myplr, double *dist);
+
+/* Find the nearest ship */
+struct Ship *find_nearest_ship (double myX, double myY, struct Ship * not_this, double *dist);
+
+/* Fire ship special weapon */
+extern void ship_fire_special (struct Ship *ship);
+
+/* Stop ship special weapon */
+extern void ship_stop_special(struct Ship *ship);
+
+/* Damage a ship */
+/* damage is the amount of damage done, ranging from 0.0 to 1.0 */
+/* critical is the probability of the damage causing a critical hit */
+extern void damage_ship(struct Ship *ship, float damage, float critical);
+
+/* Player claims a ship. Sets color and weapons */
 extern void claim_ship (struct Ship * ship, int plr);
+
+/* Cause or repair a critical hit */
 extern void ship_critical (struct Ship * ship, int repair);
+
+/* Critical hit names */
+extern const char *critical2str (int critical);
+
+/* Bump a ship up by one pixel */
 extern void bump_ship(int x,int y);
 
+/* Make ship frozen */
+extern void freeze_ship(struct Ship *ship);
+
+/* Impale a ship */
+extern void spear_ship(struct Ship *ship,struct Projectile *spear);
+
+/* Activate/deactive cloaking device */
+extern void cloaking_device (struct Ship * ship, int activate);
+
+/* Activate/deactive ghost ship */
+extern void ghostify (struct Ship * ship, int activate);
+
+/* Activate/deactive remote control  */
+extern void remote_control(struct Ship *ship, int activate);
+
 /* Globals */
-extern SDL_Surface **ship_gfx[7];
 extern struct dllist *ship_list;
 
 #endif

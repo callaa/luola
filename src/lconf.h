@@ -1,6 +1,6 @@
 /*
- * Luola - 2D multiplayer cavern-flying game
- * Copyright (C) 2003-2005 Calle Laakkonen
+ * Luola - 2D multiplayer cave-flying game
+ * Copyright (C) 2003-2006 Calle Laakkonen
  *
  * File        : lconf.h
  * Description : Level configuration file parsing
@@ -21,8 +21,8 @@
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  */
 
-#ifndef L_LCONF_H
-#define L_LCONF_H
+#ifndef LCONF_H
+#define LCONF_H
 
 #include "SDL.h"
 #include "list.h"
@@ -50,8 +50,6 @@ struct LSB_Override {
     int fish;
     int birds;
     int bats;
-    int soldiers;
-    int helicopters;
 };
 
 /* Object types */
@@ -61,12 +59,12 @@ typedef enum {OBJ_TURRET,OBJ_JUMPGATE,OBJ_COW,OBJ_FISH,OBJ_BIRD,OBJ_BAT,
 #define LAST_SPECIAL OBJ_JUMPGATE
 #define FIRST_CRITTER OBJ_COW
 #define LAST_CRITTER OBJ_HELICOPTER
+#define OBJECT_TYPES 9
 
 /* Object block */
 struct LSB_Object {
     ObjectType type;
     int x, y;
-    int ceiling_attach;
     int value;
     unsigned int id, link;
 };
@@ -78,10 +76,10 @@ struct LSB_Palette {
 
 /* Level settings structure */
 struct LevelSettings {
-    struct LSB_Main mainblock;
-    struct LSB_Palette palette;
-    struct LSB_Override *override;
-    struct dllist *objects;
+    struct LSB_Main mainblock;      /* All levels have a mainblock */
+    struct LSB_Palette palette;     /* All levels define a palette */
+    struct LSB_Override *override;  /* Some levels may override settings */
+    struct dllist *objects;         /* Some levels may specify objects */
     /* Thumbnail is loaded afterwards from the file named in mainblock */
     SDL_Surface *thumbnail;
 };
@@ -92,5 +90,8 @@ struct LevelSettings *load_level_config (const char *filename);
 /* Load level configuration from an SDL_RWops */
 /* The filename is used just for error messages */
 struct LevelSettings *load_level_config_rw (SDL_RWops * rw, size_t len, const char *filename);
+
+/* Object type string */
+extern const char *obj2str(ObjectType obj);
 
 #endif

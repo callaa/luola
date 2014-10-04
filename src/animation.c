@@ -1,6 +1,6 @@
 /*
- * Luola - 2D multiplayer cavern-flying game
- * Copyright (C) 2001-2005 Calle Laakkonen
+ * Luola - 2D multiplayer cave-flying game
+ * Copyright (C) 2001-2006 Calle Laakkonen
  *
  * File        : animation.c
  * Description : This module handles all the animation and redraw timings
@@ -28,12 +28,12 @@
 #include "console.h"
 #include "level.h"
 #include "player.h"
-#include "weapon.h"
+#include "projectile.h"
 #include "animation.h"
 #include "particle.h"
 #include "special.h"
 #include "critter.h"
-#include "weather.h"
+#include "decor.h"
 #include "ship.h"
 
 /* Internally used globals */
@@ -53,8 +53,8 @@ static void set_quarter_geom(void)
     for(p=0;p<4;p++) {
         cam_rects[p].w = screen->w/2;
         cam_rects[p].h = screen->h/2;
-        lev_rects[p].x = (screen->w/2) * (p%2);
-        lev_rects[p].y = (screen->h/2) * (p/2);
+        viewport_rects[p].x = (screen->w/2) * (p%2);
+        viewport_rects[p].y = (screen->h/2) * (p/2);
     }
     screen_geometry = SCR_QUARTER;
 }
@@ -65,10 +65,12 @@ static void set_half_geom(int p1,int p2)
     cam_rects[p1].w=screen->w;
     cam_rects[p1].h=screen->h/2;
     cam_rects[p2] = cam_rects[p1];
-    lev_rects[p1].x=0;
-    lev_rects[p1].y=0;
-    lev_rects[p2].x=0;
-    lev_rects[p2].y=screen->h/2;
+    viewport_rects[p1].x=0;
+    viewport_rects[p1].y=0;
+
+    viewport_rects[p2].x=0;
+    viewport_rects[p2].y=screen->h/2;
+
     screen_geometry = SCR_HALF;
 }
 
@@ -76,8 +78,8 @@ static void set_half_geom(int p1,int p2)
 static void set_full_geom(int p) {
     cam_rects[p].w=screen->w;
     cam_rects[p].h=screen->h;
-    lev_rects[p].x=0;
-    lev_rects[p].y=0;
+    viewport_rects[p].x=0;
+    viewport_rects[p].y=0;
     screen_geometry = SCR_FULL;
 }
 
@@ -122,6 +124,7 @@ void recalc_geometry(void)
             set_quarter_geom();
         }
     }
+
     /* Stars must be recalculated after geometry change */
     if(oldgeom != screen_geometry)
         reinit_stars();
@@ -204,16 +207,24 @@ static void rearrange_half(int numplayers, int my_players[4])
 {
     anim_rects = 1;
     if(numplayers==2) {
+        anim_update_rects[0].x = 0;
+        anim_update_rects[0].y = 0;
         anim_update_rects[0].w = screen->w;
         anim_update_rects[0].h = screen->h;
     } else {
-        int plr=0;
-        while(plr<4) {
-            if(my_players[plr]) break;
-            plr++;
+        int r,deadplr=-1,aliveplr=-1;
+        for(r=0;r<4;r++) {
+            if(players[r].state == BURIED)
+                deadplr = r;
+            else if(my_players[r])
+                aliveplr = r;
+        }
+        if(deadplr<0 || aliveplr<0) {
+            fprintf(stderr,"%s: BUG: deadplr==%d, aliveplr==%d\n",
+                    __func__,deadplr,aliveplr);
         }
         anim_update_rects[0].x = 0;
-        anim_update_rects[0].y = (screen->h/2) * (plr>1);
+        anim_update_rects[0].y = (screen->h/2) * (aliveplr>deadplr);
         anim_update_rects[0].w = screen->w;
         anim_update_rects[0].h = screen->h/2;
     }
@@ -224,6 +235,7 @@ void reinit_animation (void)
 {
     anim_gamepaused = 0;
     anim_fadescr = 0;
+    endgame = -1;
 }
 
 /* Arrange screen update rectangles */
@@ -244,7 +256,7 @@ void rearrange_animation (void)
     } else {
         switch(screen_geometry) {
             case SCR_UNDEF:
-                printf("Bug! rearrange_animation(): screen geometry in undefined!\n");
+                fputs("rearrange_animation(): BUG: screen geometry in undefined!\n",stderr);
                 abort();
             case SCR_QUARTER:
                 rearrange_quarter(numplayers,my_players);
@@ -263,18 +275,19 @@ void rearrange_animation (void)
     }
 }
 
+/* Fade out a player viewport */
 static void fade_plr_screen(int plr,Uint8 opacity)
 {
     SDL_Rect msg;
 #ifdef HAVE_LIBSDL_GFX
-    boxRGBA(screen,lev_rects[plr].x,lev_rects[plr].y,
-            lev_rects[plr].x+cam_rects[plr].w,
-            lev_rects[plr].y+cam_rects[plr].h,
+    boxRGBA(screen,viewport_rects[plr].x,viewport_rects[plr].y,
+            viewport_rects[plr].x+cam_rects[plr].w,
+            viewport_rects[plr].y+cam_rects[plr].h,
             0,0,0,opacity);
 #else
     SDL_Rect rect;
-    rect.x = lev_rects[plr].x;
-    rect.y = lev_rects[plr].y;
+    rect.x = viewport_rects[plr].x;
+    rect.y = viewport_rects[plr].y;
     rect.w = cam_rects[plr].w;
     rect.h = cam_rects[plr].h*opacity/510;
 
@@ -282,7 +295,7 @@ static void fade_plr_screen(int plr,Uint8 opacity)
     rect.y+=cam_rects[plr].h-rect.h;
     SDL_FillRect(screen,&rect,0);
 
-    rect.y = lev_rects[plr].y+rect.h;
+    rect.y = viewport_rects[plr].y+rect.h;
     rect.h = cam_rects[plr].h-rect.h*2;
     rect.w = cam_rects[plr].w*opacity/510;
 
@@ -290,8 +303,8 @@ static void fade_plr_screen(int plr,Uint8 opacity)
     rect.x+=cam_rects[plr].w-rect.w;
     SDL_FillRect(screen,&rect,0);
 #endif
-    msg.x = lev_rects[plr].x + cam_rects[plr].w/2 - plr_messages[plr]->w/2;
-    msg.y = lev_rects[plr].y + cam_rects[plr].h/2 - plr_messages[plr]->h/2;
+    msg.x = viewport_rects[plr].x + cam_rects[plr].w/2 - plr_messages[plr]->w/2;
+    msg.y = viewport_rects[plr].y + cam_rects[plr].h/2 - plr_messages[plr]->h/2;
     if(plr_messages[plr])
         SDL_BlitSurface (plr_messages[plr], NULL, screen, &msg);
     else
@@ -323,12 +336,12 @@ int pause_game (void)
         /* Draw pause messages */
         for (p = 0; p < 4; p++)
             if (players[p].state==ALIVE) {
-                rect.x = lev_rects[p].x;
-                rect.y = lev_rects[p].y;
+                rect.x = viewport_rects[p].x;
+                rect.y = viewport_rects[p].y;
                 rect.w = cam_rects[p].w;
                 rect.h = cam_rects[p].h;
-                fill_box(screen, lev_rects[p].x, lev_rects[p].y, lev_rects[p].w,
-                        lev_rects[p].h, col_pause_backg);
+                fill_box(screen, viewport_rects[p].x, viewport_rects[p].y, viewport_rects[p].w,
+                        viewport_rects[p].h, col_pause_backg);
                 msg_rect.x = rect.x + rect.w/2 - pause_msg->w/2;
                 msg_rect.y = rect.y + rect.h/2 - pause_msg->h/2;
                 SDL_BlitSurface(pause_msg,NULL,screen,&msg_rect);
@@ -355,11 +368,11 @@ void animate_frame (void)
     animate_level ();
     animate_specials ();
     animate_critters ();
-    animate_weather ();
+    animate_decorations ();
     /* Draw */
     draw_ships ();
     draw_pilots ();
-    animate_weapons ();
+    animate_projectiles ();
     animate_particles ();
     draw_bat_attack ();
     draw_player_hud ();
@@ -372,7 +385,7 @@ void animate_frame (void)
             fades[r] = (anim_fadescr >> (r*8)) & 0xff;
             if(fades[r]) {
                 fades[r]--;
-                fade_plr_screen(r,(FADE_STEP-fades[r])/(float)FADE_STEP*255);
+                fade_plr_screen(r,(FADE_STEP-fades[r])/(double)FADE_STEP*255);
                 if(fades[r]==0) {
                     players[r].state = BURIED;
                     rearrange_animation();
@@ -385,10 +398,13 @@ void animate_frame (void)
     /* Update screen */
     SDL_UpdateRects (screen, anim_rects, anim_update_rects);
 
-    /* End the level if there are less than two teams left */
+    /* End the level if there are less than two teams left
+     * and endmode is last player wins or if there are less than 10
+     * pixels of base terrain left or all players are dead. */
     if (endgame == -1) {
         if (plr_teams_left < 2) {
-            if (game_settings.endmode == 0 || lev_level.base_area < 10)
+            if (game_settings.endmode == 0 || lev_level.base_area < 10
+                    || plr_teams_left == 0)
                 endgame = 30;
         }
     }

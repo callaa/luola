@@ -1,6 +1,6 @@
 /*
- * Luola - 2D multiplayer cavern-flying game
- * Copyright (C) 2005 Calle Laakkonen
+ * Luola - 2D multiplayer cave-flying game
+ * Copyright (C) 2005-2006 Calle Laakkonen
  *
  * File        : selection.c
  * Description : Level/weapon selection screens
@@ -34,6 +34,7 @@
 #include "ldat.h"
 #include "player.h"
 #include "selection.h"
+#include "weapon.h"
 #include "demo.h"
 #include "audio.h"
 
@@ -367,7 +368,7 @@ static SDL_Rect draw_weapon_bar(SDL_Surface *surface,int plr) {
     fill_box(surface,rect.x,rect.y,rect.w,rect.h,color);
 
     putstring_direct(surface, Bigfont, rect.x + 10, rect.y,
-            sweap2str (players[plr].standardWeapon), font_color_white);
+            normal_weapon[players[plr].standardWeapon].name, font_color_white);
 
     rect.x = rect.w + WEAPON_SEP;
     rect.w = screen->w - rect.x;
@@ -375,7 +376,7 @@ static SDL_Rect draw_weapon_bar(SDL_Surface *surface,int plr) {
     fill_box(surface,rect.x,rect.y,rect.w,rect.h,color);
 
     putstring_direct(surface, Bigfont, rect.x + 10, rect.y,
-            weap2str (players[plr].specialWeapon), font_color_white);
+            special_weapon[players[plr].specialWeapon].name, font_color_white);
 
     rect.x = 0;
     rect.w = screen->w;
@@ -435,13 +436,13 @@ int select_weapon(struct LevelFile *level) {
                     SDL_Rect rect;
                     playwave(WAV_BLIP);
 
-                    if (players[i].specialWeapon < 1)
-                        players[i].specialWeapon = WeaponCount - 1;
-                    else if (players[i].specialWeapon == WeaponCount)
-                        players[i].specialWeapon = 1;
+                    if ((int)players[i].specialWeapon < 0)
+                        players[i].specialWeapon = special_weapon_count() - 1;
+                    else if (players[i].specialWeapon == special_weapon_count() )
+                        players[i].specialWeapon = 0;
                     if ((int) players[i].standardWeapon < 0)
-                        players[i].standardWeapon = SWeaponCount - 1;
-                    else if ((int) players[i].standardWeapon == SWeaponCount)
+                        players[i].standardWeapon = normal_weapon_count() - 1;
+                    else if ((int) players[i].standardWeapon == normal_weapon_count())
                         players[i].standardWeapon = 0;
 
                     rect = draw_weapon_bar(screen,i);

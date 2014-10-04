@@ -1,6 +1,6 @@
 /*
- * Luola - 2D multiplayer cavern-flying game
- * Copyright (C) 2001-2005 Calle Laakkonen
+ * Luola - 2D multiplayer cave-flying game
+ * Copyright (C) 2001-2006 Calle Laakkonen
  *
  * File        : audio.c
  * Description : This module handles all audio playback
@@ -152,7 +152,8 @@ void init_audio ()
 void playwave (AudioSample sample)
 {
 #if HAVE_LIBSDL_MIXER
-    if (!audio_available || !game_settings.sounds || samples[sample]==NULL)
+    if (!audio_available || !game_settings.sounds || sample==WAV_NONE ||
+            samples[sample]==NULL)
         return;
     Mix_PlayChannel (-1, samples[sample], 0);
 #endif
@@ -163,17 +164,18 @@ void playwave_3d (AudioSample sample, int x, int y)
 #if HAVE_LIBSDL_MIXER
     int dist,angle;
     int nearest;
-    if (!audio_available || !game_settings.sounds || samples[sample]==NULL)
+    if (!audio_available || !game_settings.sounds || sample==WAV_NONE ||
+            samples[sample]==NULL)
         return;
     nearest = hearme (x, y);
     if (nearest < 0)
         return;
     if (players[nearest].ship) {
-        x = x - players[nearest].ship->x;
-        y = y - players[nearest].ship->y;
+        x = x - players[nearest].ship->physics.x;
+        y = y - players[nearest].ship->physics.y;
     } else {
-        x = x - players[nearest].pilot.x;
-        y = y - players[nearest].pilot.y;
+        x = x - players[nearest].pilot.walker.physics.x;
+        y = y - players[nearest].pilot.walker.physics.y;
     }
     dist = (0.5 + (hypot (x, y) / HEARINGRANGE)) * 180;
     angle = atan2 (x, y) * (180.0 / M_PI);

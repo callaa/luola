@@ -1,34 +1,21 @@
-Release notes for Luola 1.3.1
+Release notes for Luola 1.3.2
 ------------------------------
 
-Luola 1.3.1 introduces yet more changes to the level file format.
-This time however, backwards compatability is maintained. The following
-changes were made to level configuration file format:
+Luola 1.3.2 introduces a new unified physics engine. Most of the game
+code (ships, weapons, critters, etc.) was rewritten.
 
-[end*] markers are no longer needed.
-[icon] block was removed
-thumbnail keyword was added to [main] block.
+Luola 1.3.2 is still a very much work in progress. Rewriting the game code
+introduced many regressions in gameplay. Most notably, the pilot's ninjarope is
+currently practically unusable.
 
-Levels no longer have icons, but they can (and should) have a thumbnail.
-The thumbnail must be 120 pixels high.
+Regressions to sort out:
 
-Compact level files no longer use a binary configuration block, but instead
-read the options from an embedded ASCII configuration file.
-All levels offered on Luola homepage will work in both Luola 1.3.0 and 1.3.1.
-Compact level files can now also contain multiple levels.
+Object-object collisions don't work properly yet. Ship collisions are disabled
+until they are fixed. Also, acid and napalm currently don't stick to ships.
 
-Datafiles have been relocated.
-All image files are now packed in gfx.ldat, and all sounds are now in sfx.ldat
-The data directory now only contains the levels/ subdirectory.
+Pilot's rope is now spring system based. The system is currently highly
+unstable and needs more work.
 
-The compact level file creation utility mkecompact was removed. It is no not
-needed anymore, as Luola no longer uses the binary configuration file format.
-From now on, use the ldat utility to create compact level files.
-Example .pack file for ldat tool:
-
-ldat: mylevel.compact.lev
-0	ARTWORK		mylevel.png
-0	COLLISION	mylevelc.png
-0	CONFIG		mylevel.lev
-0	THUMBNAIL	mylevel.thumb.png
-
+Some sound effects are missing. This just means adding more playwave() and
+playwave_3d() calls. Also, some weapons could use a sound effect of their own,
+rather than the generic one.

@@ -1,6 +1,6 @@
 /*
- * Luola - 2D multiplayer cavern-flying game
- * Copyright (C) 2001-2005 Calle Laakkonen
+ * Luola - 2D multiplayer cave-flying game
+ * Copyright (C) 2001-2006 Calle Laakkonen
  *
  * File        : game.c
  * Description : Game configuration and initialization
@@ -27,7 +27,6 @@
 #include <dirent.h>
 #include <SDL.h>
 
-#include "defines.h" /* GAME_SPEED */
 #include "startup.h"
 #include "console.h"
 #include "fs.h"
@@ -92,27 +91,26 @@ void init_game (LDAT *miscfile)
         game_settings.controller[p].number = 0;
         game_settings.controller[p].device = NULL;
     }
-    game_settings.ship_collisions = 1;
     game_settings.ls.indstr_base = 0;
     game_settings.base_regen = 1;
+    game_settings.ship_collisions = 1;
     game_settings.coll_damage = 1;
     game_settings.enable_smoke = 1;
     game_settings.ls.jumpgates = 0;
     game_settings.jumplife = 1;
+    game_settings.onewayjp = 1;
+    game_settings.soldiers = 15;
+    game_settings.helicopters = 5;
     game_settings.ls.turrets = 0;
     game_settings.ls.critters = 1;
     game_settings.ls.cows = 5;
     game_settings.ls.fish = 5;
     game_settings.ls.birds = 5;
     game_settings.ls.bats = 5;
-    game_settings.ls.soldiers = 15;
-    game_settings.ls.helicopters = 5;
     game_settings.ls.snowfall = 0;
     game_settings.ls.stars = 1;
     game_settings.endmode = 0;
     game_settings.levels = NULL;
-    game_settings.gravity_bullets = 1;
-    game_settings.wind_bullets = 0;
     game_settings.large_bullets = 0;
     game_settings.weapon_switch = 0;
     game_settings.eject = 1;
@@ -139,11 +137,10 @@ void reset_game (void)
 {
     int p;
     for (p = 0; p < 4; p++) {
-        players[p].state = INACTIVE;
         game_status.wins[p] = 0;
         game_status.lifetime[p] = 0;
-        player_teams[p] = p;
     }
+    reset_players();
     game_settings.rounds = 5;
     game_settings.playmode = Normal;
     game_status.lastwin = 0;
@@ -165,8 +162,6 @@ void apply_per_level_settings (struct LevelSettings * settings)
         if(o->fish>=0) level_settings.fish=o->fish;
         if(o->birds>=0) level_settings.birds=o->birds;
         if(o->bats>=0) level_settings.bats=o->bats;
-        if(o->soldiers>=0) level_settings.soldiers=o->soldiers;
-        if(o->helicopters>=0) level_settings.helicopters=o->helicopters;
     }
 }
 
@@ -209,7 +204,7 @@ void game_statistics (void)
     data_line = 0;
     for (p = 0; p < 4; p++)
         if (players[p].state)
-            teams[player_teams[p]] = 1;
+            teams[get_team(p)] = 1;
     for (t = 0; t < 4; t++) {
         data_format[data_line] = 0;
         sprintf (data[data_line][0], "Team %d", t + 1);
@@ -218,7 +213,7 @@ void game_statistics (void)
             mostwins = 0;
             avglife = 0;
             for (p = 0; p < 4; p++) {
-                if (players[p].state && player_teams[p] == t) {
+                if (players[p].state && get_team(p) == t) {
                     data_line++;
                     data_format[data_line] = 1;
                     sprintf (data[data_line][0], "Player %d", p + 1);
@@ -436,23 +431,22 @@ void save_game_config (void)
     }
     /* Write settings */
     fprintf (fp, "[settings]\n");
-    fprintf (fp, "ship_collisions=%d\n", game_settings.ship_collisions);
     fprintf (fp, "indestructable_base=%d\n", game_settings.ls.indstr_base);
     fprintf (fp, "regenerate_base=%d\n", game_settings.base_regen);
+    fprintf (fp, "ship_collisions=%d\n", game_settings.ship_collisions);
     fprintf (fp, "collision_damage=%d\n", game_settings.coll_damage);
     fprintf (fp, "jumpgates=%d\n", game_settings.ls.jumpgates);
     fprintf (fp, "jumplife=%d\n", game_settings.jumplife);
+    fprintf (fp, "onewayjp=%d\n", game_settings.onewayjp);
+    fprintf (fp, "soldiers=%d\n", game_settings.soldiers);
+    fprintf (fp, "helicopters=%d\n", game_settings.helicopters);
     fprintf (fp, "turrets=%d\n", game_settings.ls.turrets);
     fprintf (fp, "critters=%d\n", game_settings.ls.critters);
     fprintf (fp, "cows=%d\n", game_settings.ls.cows);
     fprintf (fp, "birds=%d\n", game_settings.ls.birds);
     fprintf (fp, "fish=%d\n", game_settings.ls.fish);
-    fprintf (fp, "soldiers=%d\n", game_settings.ls.soldiers);
-    fprintf (fp, "helicopters=%d\n", game_settings.ls.helicopters);
     fprintf (fp, "bats=%d\n", game_settings.ls.bats);
     fprintf (fp, "smoke=%d\n", game_settings.enable_smoke);
-    fprintf (fp, "bullet_gravity=%d\n", game_settings.gravity_bullets);
-    fprintf (fp, "bullet_wind=%d\n", game_settings.wind_bullets);
     fprintf (fp, "large_bullets=%d\n", game_settings.large_bullets);
     fprintf (fp, "bigscreens=%d\n", game_settings.bigscreens);
     fprintf (fp, "snowfall=%d\n", game_settings.ls.snowfall);
@@ -475,43 +469,41 @@ void save_game_config (void)
 
 /* Parse configuration file settings block */
 static void parse_settings_block(struct dllist *values) {
-    CfgPtrType types[32];
-    void *pointers[32];
-    char *keys[32];
-
-    keys[0]="ship_collisions";      types[0]=CFG_INT; pointers[0]=&game_settings.ship_collisions;
-    keys[1]="indestructable_base";  types[1]=CFG_INT; pointers[1]=&game_settings.ls.indstr_base;
-    keys[2]="regenerate_base";      types[2]=CFG_INT; pointers[2]=&game_settings.base_regen;
-    keys[3]="collision_damage";     types[3]=CFG_INT; pointers[3]=&game_settings.coll_damage;
-    keys[4]="jumpgates";            types[4]=CFG_INT; pointers[4]=&game_settings.ls.jumpgates;
-    keys[5]="jumplife";             types[5]=CFG_INT; pointers[5]=&game_settings.jumplife;
-    keys[6]="turrets";              types[6]=CFG_INT; pointers[6]=&game_settings.ls.turrets;
-    keys[7]="critters";             types[7]=CFG_INT; pointers[7]=&game_settings.ls.critters;
-    keys[8]="cows";                 types[8]=CFG_INT; pointers[8]=&game_settings.ls.cows;
-    keys[9]="birds";                types[9]=CFG_INT; pointers[9]=&game_settings.ls.birds;
-    keys[10]="fish";                 types[10]=CFG_INT; pointers[10]=&game_settings.ls.fish;
-    keys[11]="soldiers";            types[11]=CFG_INT;pointers[11]=&game_settings.ls.soldiers;
-    keys[12]="helicopters";         types[12]=CFG_INT;pointers[12]=&game_settings.ls.helicopters;
-    keys[13]="bats";                types[13]=CFG_INT;pointers[13]=&game_settings.ls.bats;
-    keys[14]="smoke";               types[14]=CFG_INT;pointers[14]=&game_settings.enable_smoke;
-    keys[15]="bullet_gravity";      types[15]=CFG_INT;pointers[15]=&game_settings.gravity_bullets;
-    keys[16]="bullet_wind";         types[16]=CFG_INT;pointers[16]=&game_settings.wind_bullets;
-    keys[17]="snowfall";            types[17]=CFG_INT;pointers[17]=&game_settings.ls.snowfall;
-    keys[18]="stars";               types[18]=CFG_INT;pointers[18]=&game_settings.ls.stars;
-    keys[19]="endmode";             types[19]=CFG_INT;pointers[19]=&game_settings.endmode;
-    keys[20]="weapon_switch";       types[20]=CFG_INT;pointers[20]=&game_settings.weapon_switch;
-    keys[21]="eject";               types[21]=CFG_INT;pointers[21]=&game_settings.eject;
-    keys[22]="explosions";          types[22]=CFG_INT;pointers[22]=&game_settings.explosions;
-    keys[23]="recall";              types[23]=CFG_INT;pointers[23]=&game_settings.recall;
-    keys[24]="criticalhits";        types[24]=CFG_INT;pointers[24]=&game_settings.criticals;
-    keys[25]="sounds";              types[25]=CFG_INT;pointers[25]=&game_settings.sounds;
-    keys[26]="music";               types[26]=CFG_INT;pointers[26]=&game_settings.music;
-    keys[27]="playlist";            types[27]=CFG_INT;pointers[27]=&game_settings.playlist;
-    keys[28]="music_volume";        types[28]=CFG_INT;pointers[28]=&game_settings.music_vol;
-    keys[29]="sound_volume";        types[29]=CFG_INT;pointers[29]=&game_settings.sound_vol;
-    keys[30]="large_bullets";       types[30]=CFG_INT;pointers[30]=&game_settings.large_bullets;
-    keys[31]="bigscreens";          types[31]=CFG_INT;pointers[31]=&game_settings.bigscreens;
-    translate_config(values,sizeof(types)/sizeof(CfgPtrType),keys,types,pointers,0);
+    struct Translate tr[] = {
+        {"indestructable_base", CFG_INT, &game_settings.ls.indstr_base},
+        {"regenerate_base", CFG_INT, &game_settings.base_regen},
+        {"ship_collisions", CFG_INT, &game_settings.ship_collisions},
+        {"collision_damage", CFG_INT, &game_settings.coll_damage},
+        {"jumpgates", CFG_INT, &game_settings.ls.jumpgates},
+        {"jumplife", CFG_INT, &game_settings.jumplife},
+        {"turrets", CFG_INT, &game_settings.ls.turrets},
+        {"critters", CFG_INT, &game_settings.ls.critters},
+        {"cows", CFG_INT, &game_settings.ls.cows},
+        {"birds", CFG_INT, &game_settings.ls.birds},
+        {"fish", CFG_INT, &game_settings.ls.fish},
+        {"soldiers", CFG_INT, &game_settings.soldiers},
+        {"helicopters", CFG_INT, &game_settings.helicopters},
+        {"bats", CFG_INT, &game_settings.ls.bats},
+        {"onewayjp", CFG_INT, &game_settings.onewayjp},
+        {"smoke", CFG_INT, &game_settings.enable_smoke},
+        {"snowfall", CFG_INT, &game_settings.ls.snowfall},
+        {"stars", CFG_INT, &game_settings.ls.stars},
+        {"endmode", CFG_INT, &game_settings.endmode},
+        {"weapon_switch", CFG_INT, &game_settings.weapon_switch},
+        {"eject", CFG_INT, &game_settings.eject},
+        {"explosions", CFG_INT, &game_settings.explosions},
+        {"recall", CFG_INT, &game_settings.recall},
+        {"criticalhits", CFG_INT, &game_settings.criticals},
+        {"sounds", CFG_INT, &game_settings.sounds},
+        {"music", CFG_INT, &game_settings.music},
+        {"playlist", CFG_INT, &game_settings.playlist},
+        {"music_volume", CFG_INT, &game_settings.music_vol},
+        {"sound_volume", CFG_INT, &game_settings.sound_vol},
+        {"large_bullets", CFG_INT, &game_settings.large_bullets},
+        {"bigscreens", CFG_INT, &game_settings.bigscreens},
+        {0,0,0}
+    };
+    translate_config(values,tr,0);
 }
 
 static void parse_controllers_block(struct dllist *values) {

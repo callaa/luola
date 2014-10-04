@@ -1,6 +1,6 @@
 /*
- * Luola - 2D multiplayer cavern-flying game
- * Copyright (C) 2004-2005 Calle Laakkonen
+ * Luola - 2D multiplayer cave-flying game
+ * Copyright (C) 2004-2006 Calle Laakkonen
  *
  * File        : parser.c
  * Description : Generic configuration file parser
@@ -24,8 +24,8 @@
 #include <string.h>
 #include <stdio.h>
 
-#include "SDL/SDL.h"
-#include "SDL/SDL_rwops.h"
+#include "SDL.h"
+#include "SDL_rwops.h"
 
 #include "parser.h"
 
@@ -170,24 +170,25 @@ struct dllist *read_config_rw(SDL_RWops *rw,size_t len,int quiet) {
 }
 
 /*** Set values ***/
-void translate_config(struct dllist *values,int count,char **keys,CfgPtrType *types,void **pointers,int quiet) {
+void translate_config(struct dllist *values,const struct Translate tr[],int quiet) {
 	int r;
 	while(values) {
 		struct KeyValue *pair=values->data;
         if(pair==NULL || pair->key==NULL || pair->value==NULL) {
-            printf("Unrecognized setting.\n");
-            printf("\"%s\" = \"%s\"\n",pair->key?pair->key:"(null)",
+            fprintf(stderr,"Unrecognized setting.\n");
+            fprintf(stderr,"\"%s\" = \"%s\"\n",pair->key?pair->key:"(null)",
                     pair->value?pair->value:"(null)");
         } else {
-            for(r=0;r<count;r++) {
-                if(strcmp(keys[r],pair->key)==0) {
-                    switch(types[r]) {
-                        case CFG_INT: *((int*)pointers[r])=atoi(pair->value); break;
-                        case CFG_FLOAT: *((float*)pointers[r])=atof(pair->value); break;
-                        case CFG_DOUBLE: *((double*)pointers[r])=atof(pair->value); break;
-                        case CFG_STRING: *((char**)pointers[r])=strdup(pair->value); break;
+            r=0;
+            while(tr[r].key) {
+                if(strcmp(tr[r].key,pair->key)==0) {
+                    switch(tr[r].type) {
+                        case CFG_INT: *((int*)tr[r].ptr)=atoi(pair->value); break;
+                        case CFG_FLOAT: *((float*)tr[r].ptr)=atof(pair->value); break;
+                        case CFG_DOUBLE: *((double*)tr[r].ptr)=atof(pair->value); break;
+                        case CFG_STRING: *((char**)tr[r].ptr)=strdup(pair->value); break;
                         case CFG_MULTISTRING: {
-                            struct dllist **list = pointers[r];
+                            struct dllist **list = tr[r].ptr;
                             if(*list)
                                 dllist_append(*list,strdup(pair->value));
                             else
@@ -197,8 +198,9 @@ void translate_config(struct dllist *values,int count,char **keys,CfgPtrType *ty
                     }
                     break;
                 }
+                r++;
             }
-            if(r==count && quiet==0) {
+            if(tr[r].key==NULL && quiet==0) {
                 fprintf(stderr,"Unrecognized setting \"%s\"\n",pair->key);
             }
         }

@@ -1,6 +1,6 @@
 /*
- * Luola - 2D multiplayer cavern-flying game
- * Copyright (C) 2001-2005 Calle Laakkonen
+ * Luola - 2D multiplayer cave-flying game
+ * Copyright (C) 2001-2006 Calle Laakkonen
  *
  * File        : particle.c
  * Description : Particle engine
@@ -33,10 +33,7 @@
 #include "list.h"
 
 /* Internally used globals */
-static struct dllist *particles=NULL;
-
-/* Internally used function prototypes */
-static inline void draw_particle (Particle * part);
+static struct dllist *particles;
 
 /* Deinitialize */
 void clear_particles (void) {
@@ -44,11 +41,11 @@ void clear_particles (void) {
     particles=NULL;
 }
 
-/* Utility function to create a new particle */
-Particle *make_particle (int x, int y, int age)
+/* Create a new particle */
+struct Particle *make_particle (float x, float y, int age)
 {
-    Particle *newpart;
-    newpart = malloc (sizeof (Particle));
+    struct Particle *newpart;
+    newpart = malloc (sizeof (struct Particle));
     newpart->x = x;
     newpart->y = y;
     newpart->age = age;
@@ -63,16 +60,36 @@ Particle *make_particle (int x, int y, int age)
     return newpart;
 }
 
+/* Draw a single particle on all viewports */
+static inline void draw_particle (struct Particle * part)
+{
+    Uint32 color;
+    int x, y, p;
+
+    color = map_rgba(part->color[0], part->color[1], part->color[2],
+            part->color[3]);
+    for (p = 0; p < 4; p++) {
+        if (players[p].state==ALIVE || players[p].state==DEAD) {
+            x = Round(part->x) - cam_rects[p].x;
+            y = Round(part->y) - cam_rects[p].y;
+            if ((x > 0 && x < cam_rects[p].w)
+                && (y > 0 && y < cam_rects[p].h))
+                putpixel (screen, viewport_rects[p].x + x,
+                        viewport_rects[p].y + y, color);
+        }
+    }
+}
+
 void animate_particles (void)
 {
     struct dllist *list = particles, *next;
     if (list == NULL)
         return;
     while (list) {
-        Particle *part = list->data;
+        struct Particle *part = list->data;
         next = list->next;
-        part->x -= Round (part->vector.x);
-        part->y -= Round (part->vector.y);
+        part->x += part->vector.x;
+        part->y += part->vector.y;
         part->color[0] += part->rd;
         part->color[1] += part->gd;
         part->color[2] += part->bd;
@@ -90,27 +107,8 @@ void animate_particles (void)
     }
 }
 
-static inline void draw_particle (Particle * part)
-{
-    Uint32 color;
-    int x, y, p;
-
-    color = map_rgba(part->color[0], part->color[1], part->color[2],
-            part->color[3]);
-    for (p = 0; p < 4; p++) {
-        if (players[p].state==ALIVE || players[p].state==DEAD) {
-            x = part->x - cam_rects[p].x;
-            y = part->y - cam_rects[p].y;
-            if ((x > 0 && x < cam_rects[p].w)
-                && (y > 0 && y < cam_rects[p].h))
-                putpixel (screen, lev_rects[p].x + x, lev_rects[p].y + y,
-                          color);
-        }
-    }
-}
-
 /* Calculate color delta values */
-void calc_color_deltas (Particle * part,Uint8 r,Uint8 g,Uint8 b,Uint8 a)
+void calc_color_deltas (struct Particle * part,Uint8 r,Uint8 g,Uint8 b,Uint8 a)
 {
     part->rd = (r - part->color[0]) / part->age;
     part->gd = (g - part->color[1]) / part->age;

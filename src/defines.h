@@ -24,24 +24,7 @@
 #ifndef DEFINES_H
 #define DEFINES_H
 
-#ifdef HAVE_CONFIG_H
-#include "../config.h"
-#endif
-
-/* Maximum values for user changeable limits */
-#define MAX_CRITTERS        15
-#define MAX_PLR_CRITTERS    50
-
 /* Speeds */
-#define GAME_SPEED          30   /* Speed of the game. (1000/FPS) */
-#define GRAVITY             0.136
-#define WEAP_GRAVITY        0.11
-#define THRUST              0.4
-#define MAXSPEED            2.8
-#define TURN_SPEED          0.15
-#define PROJ_UW_MAXSPEED    3.15 /* Max speed of a projectile underwater */
-#define PROJ_MAXSPEED       8.5  /* The generic maximium speed for a projectile */
-
 #define FADE_STEP               35 /* How many steps in fade animation */
 
 /* Inlines instead of macros for type safety and to prevent against ++args */

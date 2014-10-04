@@ -23,16 +23,18 @@ luola_SOURCES = \
 	player.h \
 	ship.c \
 	ship.h \
-	vector.c \
-	vector.h \
+	physics.c \
+	physics.h \
 	animation.c \
 	animation.h \
 	particle.c \
 	particle.h \
+	projectile.c \
+	projectile.h \
+	bullet.c \
+	bullet.h \
 	weapon.c \
 	weapon.h \
-	sweapon.c \
-	sweapon.h \
 	intro.c \
 	intro.h \
 	game.c \
@@ -41,12 +43,18 @@ luola_SOURCES = \
 	levelfile.h \
 	special.c \
 	special.h \
+	walker.c \
+	walker.h \
+	flyer.c \
+	flyer.h \
 	critter.c \
 	critter.h \
 	pilot.c \
 	pilot.h \
-	weather.c \
-	weather.h \
+	spring.c \
+	spring.h \
+	decor.c \
+	decor.h \
 	audio.c \
 	audio.h \
 	font.c \

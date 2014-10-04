@@ -1,6 +1,6 @@
 /*
- * Luola - 2D multiplayer cavern-flying game
- * Copyright (C) 2001-2005 Calle Laakkonen
+ * Luola - 2D multiplayer cave-flying game
+ * Copyright (C) 2001-2006 Calle Laakkonen
  *
  * File        : critter.h
  * Description : Critters that walk,swim or fly around the level. Most are passive, but some attack (soldiers and helicopters)
@@ -21,32 +21,65 @@
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  */
 
-#ifndef L_CRITTER_H
-#define L_CRITTER_H
+#ifndef CRITTER_H
+#define CRITTER_H
 
-#include "vector.h"
-#include "weapon.h"
+#include "walker.h"
+#include "flyer.h"
+#include "ldat.h"
 #include "lconf.h"
 
-typedef enum { Blood, SomeBlood, Feather, LotsOfFeathers } SplatterType;
+struct Critter {
+    union {
+        struct Physics physics; /* Everything uses this */
+        struct Walker walker;   /* Walking critters use this */
+        struct Flyer flyer;     /* Flying and swimming critters use this */
+    };
+    enum {INERTCRITTER,GROUNDCRITTER,AIRCRITTER,WATERCRITTER} type;
 
-struct Critter;
+    SDL_Rect gfx_rect;  /* Use only a piece of the gfx surface */
+    SDL_Surface **gfx;  /* Graphics */
+    int frames;         /* Total number of frames in animation */
+    int frame;          /* Current frame of animation */
+    int bidir;          /* Animation has separate frames for left & right */
+    float health;       /* Critter health. Uses the same scale as ships */
+    int owner;          /* Soldiers and helicopters don't attack their owners */
+    int ship;           /* Does this critter collide with ships? */
+    int frozen;         /* Draw a block of ice over the critter */
 
-/* Initialization */
+    /* Counters */
+    int timer;          /* When hits 0, timerfunc is called */
+    int ff;             /* Fight or Flight counter */
+    int cooloff;        /* Weapon cooloff for armed critters */
+    float cornered;     /* How cornered does the critter feel */
+
+    /* Methods */
+    void (*animate)(struct Critter *critter);
+    void (*timerfunc)(struct Critter *critter);
+    void (*die)(struct Critter *critter);
+};
+
+/* Load critter datafiles */
 extern void init_critters (LDAT *datafile);
-extern void clear_critters (void);
-extern void prepare_critters (struct LevelSettings * settings);
 
-/* Handling */
-extern struct Critter *make_critter (ObjectType species, int x, int y,int owner);
+/* Initialize critters before a match starts */
+extern void prepare_critters (struct LevelSettings *settings);
+
+/* Create a new critter of the specified type */
+extern struct Critter *make_critter (ObjectType species, float x, float y,int owner);
+
+/* Add a new critter to the level */
 extern void add_critter (struct Critter * newcritter);
-extern void cow_storm (int x, int y); /* Gravity wells effect critters as well */
-extern void splatter (int x, int y, SplatterType type);
-extern int find_nearest_terrain (int x, int y, int h);
 
-/* Animation */
+/* A projectile hits a critter */
+struct Projectile;
+extern void hit_critter(struct Critter *critter, struct Projectile *p);
+
+/* Animate and draw all critters */
 extern void animate_critters (void);
 extern void draw_bat_attack (void);
-extern int hit_critter (int x, int y, ProjectileType proj);
+
+/* List of critters */
+extern struct dllist *critter_list;
 
 #endif

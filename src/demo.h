@@ -1,5 +1,5 @@
 /*
- * Luola - 2D multiplayer cavern-flying game
+ * Luola - 2D multiplayer cave-flying game
  * Copyright (C) 2003-2005 Calle Laakkonen
  *
  * File        : demo.h

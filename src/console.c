@@ -1,6 +1,6 @@
 /*
- * Luola - 2D multiplayer cavern-flying game
- * Copyright (C) 2001-2005 Calle Laakkonen
+ * Luola - 2D multiplayer cave-flying game
+ * Copyright (C) 2001-2006 Calle Laakkonen
  *
  * File        : console.c
  * Description : 
@@ -33,7 +33,6 @@
 #include "game.h"
 #include "player.h"
 #include "particle.h"
-#include "weapon.h"
 #include "special.h"
 #include "critter.h"
 #include "hotseat.h"
@@ -50,7 +49,7 @@ SDL_Surface *screen;
 
 Uint32 col_gray, col_grenade, col_snow, col_clay, col_clay_uw, col_default,
     col_yellow, col_black, col_red, col_cyan, col_white, col_rope, col_plrs[4];
-Uint32 col_pause_backg, col_green, col_blue, col_transculent;
+Uint32 col_pause_backg, col_green, col_blue, col_translucent;
 
 /* Internally used globals */
 static SDL_Joystick *pad_0; /* The first joypad is always opened,
@@ -171,7 +170,7 @@ void init_video () {
     col_plrs[3] = map_rgba (255, 255, 0, 255);
     col_pause_backg = map_rgba (128, 128, 128, 128);
     col_green = map_rgba (0, 158, 0, 255);
-    col_transculent = map_rgba(255,255,255,128);
+    col_translucent = map_rgba(255,255,255,128);
 }
 
 /* Map RGBA colors using either plain SDL or SDL_gfx */
@@ -184,6 +183,19 @@ Uint32 map_rgba(Uint8 r,Uint8 g,Uint8 b,Uint8 a)
         g = g/255.0 * a;
         b = b/255.0 * a;
         return SDL_MapRGB (screen->format, r, g, b);
+#endif
+}
+
+/* Unmap RGBA colors using either plain SDL or SDL_gfx */
+void unmap_rgba(Uint32 c,Uint8 *r,Uint8 *g,Uint8 *b,Uint8 *a)
+{
+#if HAVE_LIBSDL_GFX
+        *r = c >> 24;
+        *g = c >> 16;
+        *b = c >> 8;
+        *a = c;
+#else
+        SDL_GetRGBA (c,screen->format, r, g, b, a);
 #endif
 }
 
@@ -217,9 +229,7 @@ void fill_box (SDL_Surface *surface,int x, int y, int w, int h, Uint32 color) {
 #if HAVE_LIBSDL_GFX
     boxColor(surface, x, y, x+w, y+h, color);
 #else
-    SDL_Rect rect;
-    rect.x = x; rect.y = y;
-    rect.w = w; rect.h = h;
+    SDL_Rect rect = {x,y,w,h};
     SDL_FillRect(surface, &rect, color);
 #endif
 }
@@ -233,23 +243,6 @@ void pixelcopy (Uint32 * srcpix, Uint32 * pixels, int w, int h, int srcpitch,
         pixels += pitch;
         srcpix += srcpitch;
     }
-}
-
-/* Returns a new surface that is a copy of the original surface upside down */
-SDL_Surface *flip_surface (SDL_Surface * original) {
-    Uint8 bpp, *src, *targ;
-    SDL_Surface *flipped;
-    int y;
-    bpp = original->format->BytesPerPixel;
-    flipped = make_surface(original,0,0);
-    src = ((Uint8 *) original->pixels) + (original->h - 1) * original->pitch;
-    targ = ((Uint8 *) flipped->pixels);
-    for (y = 0; y < flipped->h; y++) {
-        memcpy (targ, src, flipped->pitch);
-        targ += flipped->pitch;
-        src -= original->pitch;
-    }
-    return flipped;
 }
 
 /* Returns a copy of the surface */
@@ -311,7 +304,7 @@ SDL_Rect cliprect (int x1, int y1, int w1, int h1, int x2, int y2, int x3,
     return r;
 }
 
-char clip_line (int *x1, int *y1, int *x2, int *y2, int left, int top,
+int clip_line (int *x1, int *y1, int *x2, int *y2, int left, int top,
                 int right, int bottom) {
     double m;
     if ((*x1 < left && *x2 < left) || (*x1 > right && *x2 > right))
@@ -488,11 +481,9 @@ void toggle_fullscreen(void) {
 }
 
 /* Display an error message */
-void error_screen(const char *title, const char *exitmsg,
-        const char *message[], int lines) {
+void error_screen(const char *title, const char *exitmsg, const char *message[]) {
     SDL_Rect r1, r2;
     int txty;
-    int r;
 
     r1.x = 10;
     r1.w = screen->w - 20;
@@ -509,9 +500,12 @@ void error_screen(const char *title, const char *exitmsg,
     centered_string (screen, Bigfont, txty, title, font_color_red);
     txty += 40;
 
-    for(r=0;r<lines;r++,txty+=font_height(Bigfont))
-        if(message[r][0]!='\0')
-            centered_string (screen, Bigfont, txty,message[r], font_color_white);
+    while(*message) {
+        if(**message!='\0')
+            centered_string (screen, Bigfont, txty,*message, font_color_white);
+        txty += font_height(Bigfont);
+        message++;
+    }
     
     centered_string(screen,Bigfont, r2.y + r2.h - font_height(Bigfont),
             exitmsg, font_color_red);
@@ -689,20 +683,20 @@ void draw_line (SDL_Surface * screen, int x1, int y1, int x2, int y2,
 
     if (x1 < 0)
         x1 = 0;
-    else if (x1 > screen->w)
-        x1 = screen->w;
+    else if (x1 >= screen->w)
+        x1 = screen->w-1;
     if (x2 < 0)
         x2 = 0;
-    else if (x2 > screen->w)
-        x2 = screen->w;
+    else if (x2 >= screen->w)
+        x2 = screen->w-1;
     if (y1 < 0)
         y1 = 0;
-    else if (y1 > screen->h)
-        y1 = screen->h;
+    else if (y1 >= screen->h)
+        y1 = screen->h-1;
     if (y2 < 0)
         y2 = 0;
-    else if (y2 > screen->h)
-        y2 = screen->h;
+    else if (y2 >= screen->h)
+        y2 = screen->h-1;
 
     dx = x2 - x1;
     dy = y2 - y1;

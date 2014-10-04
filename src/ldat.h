@@ -1,6 +1,6 @@
 /*
  * LDAT - Luola Datafile format
- * Copyright (C) 2003-2005 Calle Laakkonen
+ * Copyright (C) 2003-2006 Calle Laakkonen
  *
  * File        : ldat.h
  * Description : Handle Luola datafiles

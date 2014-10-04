@@ -1,6 +1,6 @@
 /*
- * Luola - 2D multiplayer cavern-flying game
- * Copyright (C) 2003-2005 Calle Laakkonen
+ * Luola - 2D multiplayer cave-flying game
+ * Copyright (C) 2003-2006 Calle Laakkonen
  *
  * File        : levelfile.h
  * Description : Level loading
@@ -21,8 +21,8 @@
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  */
 
-#ifndef L_LEVELFILE_H
-#define L_LEVELFILE_H
+#ifndef LEVELFILE_H
+#define LEVELFILE_H
 
 #include "lconf.h"
 #include "ldat.h"

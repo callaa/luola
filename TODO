@@ -1,9 +1,9 @@
-
 Things to do
+ * Weapons tweaks
+ * Restore missing sound effects
  * Loading music from compact level files (is this possible in SDL yet?)
  * Force feedback (when SDL supports it)
- * Refactor the projectile animation code
- * Unified physics engine
  * Neutral soldiers and helicopters
- * Optionally one-way jump-points
  * New font
+ * Single player mode
+ * Better cow, pilot, soldier and helicopter sprites

@@ -1,6 +1,6 @@
 /*
- * Luola - 2D multiplayer cavern-flying game
- * Copyright (C) 2003-2005 Calle Laakkonen
+ * Luola - 2D multiplayer cave-flying game
+ * Copyright (C) 2003-2006 Calle Laakkonen
  *
  * File        : hotseat.c
  * Description : Hotseat game support code
@@ -37,7 +37,7 @@
 #include "ship.h"
 #include "weapon.h"
 #include "special.h"
-#include "weather.h"
+#include "decor.h"
 #include "critter.h"
 #include "particle.h"
 #include "ldat.h"
@@ -79,20 +79,12 @@ static const char *playmode_label(struct MenuItem *item) {
         
 }
 
-/* Return the icon for a ship */
-static SDL_Surface *get_ship_icon (struct MenuItem * item)
-{
-    if (players[item->ID-1].state == INACTIVE)
-        return ship_gfx[Grey][0];
-    else
-        return ship_gfx[item->ID][0];
-}
-
 /* Draw a team flag */
 static int draw_team_icon (int x, int y,MenuAlign align,struct MenuItem * item)
 {
     Uint32 color;
     int id = item->ID-1;
+    int team = get_team(id);
     int px,py;
 
     if (align == MNU_ALIGN_LEFT)
@@ -102,7 +94,7 @@ static int draw_team_icon (int x, int y,MenuAlign align,struct MenuItem * item)
         fprintf (stderr,"Bug: No player team flag %d\n", id);
         return 0;
     }
-    if (player_teams[id] > 1)
+    if (team > 1)
         color = col_black;
     else
         color = col_white;
@@ -112,8 +104,8 @@ static int draw_team_icon (int x, int y,MenuAlign align,struct MenuItem * item)
     }
     for (px = 2; px < 13; px++)
         for (py = px / 2; py < 12 - (px / 2); py++)
-            putpixel (screen, x + px, y + py, col_plrs[player_teams[id]]);
-    draw_number(screen,x+2,y+2,player_teams[id]+1,color);
+            putpixel (screen, x + px, y + py, col_plrs[team]);
+    draw_number(screen,x+2,y+2,team+1,color);
 
     return 14;
 }
@@ -132,13 +124,9 @@ static int menu_toggle_player (MenuCommand cmd,struct MenuItem * item)
             item->label.color = font_color_gray;
         }
     } else if (cmd == MNU_LEFT) {
-        player_teams[plr]--;
-        if (player_teams[plr] < 0)
-            player_teams[plr] = 3;
+        set_team(plr,get_team(plr)-1);
     } else if (cmd == MNU_RIGHT) {
-        player_teams[plr]++;
-        if (player_teams[plr] > 3)
-            player_teams[plr] = 0;
+        set_team(plr,get_team(plr)+1);
     } else {
         return 0;
     }
@@ -181,20 +169,18 @@ void init_hotseat (void) {
     add_menu_item(hotseat_startup_menu,MNU_ITEM_SEP,0,label,MnuNullValue);
     for(r=0;r<4;r++) {
         struct MenuText plrlbl = menu_txt_label(players[r]);
-        struct MenuIcon *ship,*ctrl,*team;
+        struct MenuIcon *ctrl,*team;
         struct MenuItem *i;
         plrlbl.color = font_color_gray;
         i = add_menu_item(hotseat_startup_menu,MNU_ITEM_LABEL,r+1,
                 plrlbl,MnuNullValue);
         i->action = menu_toggle_player;
 
-        ship = menu_icon_get(get_ship_icon);
         ctrl = menu_icon_draw(draw_input_icon);
         ctrl->align = MNU_ALIGN_LEFT;
         team = menu_icon_draw(draw_team_icon);
 
-        i->icons = dllist_append(NULL,ship);
-        dllist_append(i->icons,ctrl);
+        i->icons = dllist_append(NULL,ctrl);
         dllist_append(i->icons,team);
     }
 
@@ -375,10 +361,10 @@ void hotseat_game (void)
         if(lev_level.width < viewport.w || lev_level.height < viewport.h) {
             const char *toosmall[] = {
                 "Level is smaller than the viewport!",
-                "Increase level zoom or use quarter screens."
+                "Increase level zoom or use quarter screens.",NULL
             };
             error_screen(curlevel->settings->mainblock.name,
-                    "Press enter to skip level", toosmall,2);
+                    "Press enter to skip level", toosmall);
             close_level(curlevel);
             continue;
         }
@@ -387,11 +373,12 @@ void hotseat_game (void)
         prepare_specials (curlevel->settings);
         prepare_critters (curlevel->settings);
 
-        clear_weapons ();
+        clear_projectiles ();
         clear_particles ();
+        reset_physics ();
         reinit_players ();
         reinit_ships (curlevel->settings);
-        prepare_weather ();
+        prepare_decorations ();
         
         /* Load custom backgroud music */
         music = curlevel->settings->mainblock.music;
@@ -411,7 +398,7 @@ void hotseat_game (void)
             for(r=0;r<4;r++) {
                 if(players[r].state==ALIVE) {
                     set_player_message(r,Smallfont,font_color_green,25,
-                            weap2str(players[r].specialWeapon));
+                            special_weapon[players[r].specialWeapon].name);
                 }
             }
         }
@@ -443,8 +430,6 @@ void hotseat_game (void)
         unload_level ();
         close_level(curlevel);
         clear_specials ();
-        clear_critters ();
-        player_cleanup ();
         game_settings.rounds--;
         game_status.total_rounds++;
     }

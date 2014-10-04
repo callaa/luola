@@ -11,7 +11,7 @@ Table of contents
 1. Introduction
 --------------------------------------------------------------------------------
 
-A Luola level is made up of fourh parts:
+A Luola level is made up of four parts:
     1) The level artwork
     2) The collisionmap image
     3) Level settings file
@@ -26,7 +26,7 @@ These four parts can be seperate files, or all packed into a single one.
 The level artwork file can also be used as the collisionmap, provided that
 it is palette based and the colours are arranged properly. You can manually
 specify the meaning of each color, so it is possible to use levels from
-other caveflyers in Luola.
+other caveflying games in Luola.
 
 The level artwork is the part of the level the player sees.
 The collisionmap specifies different terrain types such as free space, ground,
@@ -62,6 +62,10 @@ Color 16 - Base material
 Color 17 - Tunnel
 Color 18 - Walkway
 
+Up to Luola 1.3.1, this reflected Luola's internal palette format. This
+palette order is retained for backwards compatability. Feel free to define
+your own palette when making levels.
+
 Terrain explanations:
  0. Free space
 	This is just empty space, you can fly thru it. Explosions don't affect
@@ -76,7 +80,7 @@ Terrain explanations:
 	when destroyed. Artwork fill be filled with the colour of water
 
  4. Water
- 	Like free space, except more viscous. This color is used when creating
+ 	Like free space, except more dense. This color is used when creating
 	new water in the game, so it should be the same as in level artwork.
 
  5. Base
@@ -93,7 +97,7 @@ Terrain explanations:
  8-11. Waterflows
  	These water terrains will affect ships and bullets that travel thru them.
 	The current is so strong that the ship cannot fight it (except with Dart),
-	so be carefull how you use it.
+	so be careful how you use it.
 
  12. Combustable terrain
  	This terrain will burn away. The fire is started by special firestarter
@@ -162,11 +166,12 @@ music = *.???		- Set to the name of the background music file for this
 Override block
 --------------
 
-critters = ?				- Force critters to be enabled/disabled
-bases_indestructable = ?	- If set to 1, bases will be indestructable
+critters = 1/0				- Force critters to be enabled/disabled
+bases_indestructable = 1/0	- If set to 1, bases will be indestructable
 
-stars = ?					- Stars enabled/disabled
-snowfall = ?				- Snowfall enabled/disabled
+stars = 1/0					- Stars enabled/disabled
+snowfall = 1/0				- Snowfall enabled/disabled
+onewayjp = 1/0				- Are jump points one way only
 --The rest are numbers of automatically placed objects--
 turrets = ?
 jumpgates = ?				- Note: this is the number of jumpgate _pairs_
@@ -177,13 +182,11 @@ bats = ?
 
 Object block
 -------------
-You can have multiple object blocks.
+An object block defines a single object. You can have multiple object blocks.
 
 type = {turret,jumpgate,cow,fish,bird,bat,ship}	- Type of the object
 x = ?											- X and Y coordinates.
 y = ?
-ceiling_attach = {1,0}							- When set to 1, the object
-												is aligned by its top border
 value = ?										- A special value of the object.
 						  When used by a turret: 0=normal,1=grenade,2=missile
 						  When used by a bat: 0=awake, 1=asleep
@@ -196,11 +199,8 @@ Both jumpgates must have their ids and links set up accordingly.
 The id can be any number, it is used only while searching for the jumpgates pair.
 
 Note about the coordinates.
-The coordinates are aligned so that x is the left border of the object
-and y is the _lower_border_. This is so that the objects can be aligned properly
-regardless of their size.
-Some objects like ceiling attached turrets and bats benefit more if the object
-is aligned by its upper border. In these cases, set ceiling_attach to 1.
+For most objects, x and y mark the center of the object. For land critters,
+y is the lower border.
 If level is scaled, the coordinates are automatically scaled as well.
 
 Palette block
@@ -215,7 +215,7 @@ if not set here)
 
 <colour range> = <type>
 
-Colour range can be a single number (eg. 0) or a two numbers (eg. 0-10).
+Colour range can be a single number (eg. 0) or a range (eg. 0-10).
 Type can be one of following:
 free,ground,underwater,indestructable,water,base,explosive,explosive2,
 waterup,waterright,waterdown,waterleft,combustable,combustable2,snow,
@@ -247,7 +247,7 @@ Multiple levels can be stored in a single compact level file, by using
 a different index for each level.
 
 To create compact level files, use the bundled ldat tool.
-An example .pack file for ldat:
+An example .pack file for ldat that stores two levels in a single archive:
 ldat: mylevel.lev
 0       ARTWORK         mylevel.png
 0       COLLISION       mylevelcmap.png
@@ -258,7 +258,7 @@ ldat: mylevel.lev
 1       CONFIG          mysecondlevelconf.lev
 1       THUMBNAIL       mysecondlevel.thumb.png
 
-To extract the files from a compact level file, use the provided ldat tool.
+You can also extract levels with the ldat tool.
 Eg.
 ldat -x twilight.compact.lev ARTWORK
 will extract the level artwork from Twilight Zone level.

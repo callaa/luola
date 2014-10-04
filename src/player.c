@@ -1,6 +1,6 @@
 /*
- * Luola - 2D multiplayer cavern-flying game
- * Copyright (C) 2001-2005 Calle Laakkonen
+ * Luola - 2D multiplayer cave-flying game
+ * Copyright (C) 2001-2006 Calle Laakkonen
  *
  * File        : player.c
  * Description : Player information and animation
@@ -42,6 +42,8 @@
 
 #include "audio.h"
 
+#define SHIP_TURN_SPEED 0.15
+
 /* Internally used globals */
 static SDL_Surface *plr_weaponsel_bg;
 static SDL_Surface *plr_weapons[4];
@@ -49,17 +51,14 @@ static SDL_Surface *plr_weapons[4];
 static signed int player_message[4];
 static int plr_teamc[4];
 static Uint32 plr_healthbar_col, plr_healthbar_col2, plr_healthbar_col3,
-    plr_energybar_col, plr_blankbar_col;
+    plr_energybar_col,plr_noenergybar_col, plr_blankbar_col;
+static int player_teams[4];
 
 /* Exported globals */
 SDL_Surface *plr_messages[4];
-int player_teams[4];
 int plr_teams_left;
 int radars_visible;
 Player players[4];
-
-/* Internally used functions */
-static void player_key_update(unsigned char plr);
 
 /* Initialize players */
 void init_players (LDAT *misc) {
@@ -68,10 +67,11 @@ void init_players (LDAT *misc) {
     plr_healthbar_col2 = SDL_MapRGB (screen->format, 200, 200, 0);
     plr_healthbar_col3 = SDL_MapRGB (screen->format, 200, 0, 0);
     plr_energybar_col = SDL_MapRGB (screen->format, 186, 195, 195);
+    plr_noenergybar_col = SDL_MapRGB (screen->format, 186, 95, 95);
     plr_blankbar_col = SDL_MapRGB (screen->format, 106, 44, 123);
     for (p = 0; p < 4; p++) {
-        players[p].specialWeapon = WGrenade;
-        players[p].standardWeapon = SShot;
+        players[p].specialWeapon = 0;
+        players[p].standardWeapon = 0;
         /* Initialize message surface */
         plr_messages[p] = NULL;
         plr_weapons[p] = NULL;
@@ -90,10 +90,36 @@ int active_players(void) {
     return a;
 }
 
+/* Which team does the player belong to */
+int get_team(int plr) {
+    if(plr<0||plr>3) return -1;
+    return player_teams[plr];
+}
+
+/* Set which team a player belongs to */
+void set_team(int plr, int team) {
+    if(plr>=0 && plr<=3 && team>=0 && team<=3)
+        player_teams[plr] = team;
+}
+
+/* Check if two players are on the same team */
+int same_team(int plr1, int plr2) {
+    if((plr1<0||plr1>3) && (plr2<0||plr2>3)) return 1;
+    return player_teams[plr1] == player_teams[plr2];
+}
+
+/* Reset players for a new game */
+void reset_players(void) {
+    int p;
+    for(p=0;p<4;p++) {
+        players[p].state = INACTIVE;
+        player_teams[p] = p;
+    }
+}
+
 /* Prepare players for a new round */
 void reinit_players (void) {
     int p, unlucky = -1;
-    endgame = -1;
     if (active_players() == 0) {
         fprintf(stderr, "Bug! reinit_players(): no players selected!\n");
         exit(1);
@@ -103,6 +129,10 @@ void reinit_players (void) {
             unlucky = rand () % 4;
         while (players[unlucky].state == INACTIVE);
     }
+
+    clear_ships();
+    reinit_pilots();
+
     for (p = 0; p < 4; p++) {
         players[p].ship=NULL;
         if (players[p].state == INACTIVE)
@@ -110,15 +140,14 @@ void reinit_players (void) {
 
         players[p].state = ALIVE;
         players[p].recall_cooloff = 0;
-        init_pilot(&players[p].pilot,p);
         memset (&players[p].controller, 0, sizeof (GameController));
         if (plr_weapons[p]) {
             SDL_FreeSurface (plr_weapons[p]);
             plr_weapons[p] = NULL;
         }
         if(game_settings.playmode == RndWeapon) {
-            players[p].standardWeapon = rand()%SWeaponCount;
-            players[p].specialWeapon = rand()%(WeaponCount-1)+1;
+            players[p].standardWeapon = rand()%normal_weapon_count()-1;
+            players[p].specialWeapon = rand()%(special_weapon_count()-1)+1;
         }
         players[p].weapon_select = 0;
         if (game_settings.playmode == OutsideShip1) {
@@ -141,14 +170,14 @@ void reinit_players (void) {
                 ship_critical (players[p].ship, 0);
         }
         if (p != unlucky) {
-            players[p].ship->x = lev_level.player_def_x[0][p];
-            players[p].ship->y = lev_level.player_def_y[0][p];
+            players[p].ship->physics.x = lev_level.player_def_x[0][p];
+            players[p].ship->physics.y = lev_level.player_def_y[0][p];
         }
         if (game_settings.playmode == OutsideShip
             || game_settings.playmode == OutsideShip1) {
             eject_pilot (p);
-            players[p].pilot.x = lev_level.player_def_x[1][p];
-            players[p].pilot.y = lev_level.player_def_y[1][p];
+            players[p].pilot.walker.physics.x = lev_level.player_def_x[1][p];
+            players[p].pilot.walker.physics.y = lev_level.player_def_y[1][p];
         }
         player_message[p] = 0;
         if (plr_messages[p]) {
@@ -179,8 +208,8 @@ void reinit_players (void) {
 static void draw_player_statusbar (int p) {
     SDL_Rect outline,health,energy;
     Uint32 healthcol;
-    outline.x = lev_rects[p].x + 19;
-    outline.y = lev_rects[p].y + cam_rects[p].h - 7;
+    outline.x = viewport_rects[p].x + 19;
+    outline.y = viewport_rects[p].y + cam_rects[p].h - 7;
     outline.w = cam_rects[p].w - 38;
     outline.h = 7;
 
@@ -205,12 +234,41 @@ static void draw_player_statusbar (int p) {
     health.w *= players[p].ship->health;
     energy.w *= players[p].ship->energy;
     SDL_FillRect (screen, &health, healthcol);
-    SDL_FillRect (screen, &energy, plr_energybar_col);
+    if(players[p].ship->special_cooloff || players[p].ship->energy <
+            special_weapon[players[p].ship->special].energy)
+        SDL_FillRect (screen, &energy, plr_noenergybar_col);
+    else
+        SDL_FillRect (screen, &energy, plr_energybar_col);
+}
+
+/* Draw a bar indicating rope length */
+static void draw_rope_bar(int plr) {
+    SDL_Rect bar;
+    bar.w = 3;
+    bar.h = cam_rects[plr].h/2;
+    bar.x = viewport_rects[plr].x + cam_rects[plr].w - bar.w - 10;
+    bar.y = viewport_rects[plr].y + cam_rects[plr].h/2 - bar.h/2;
+
+    fill_box(screen,bar.x,bar.y,bar.w,bar.h, col_rope);
+    draw_box(bar.x,bar.y,bar.w+1,bar.h+1,1, col_black);
+    bar.y += bar.h;
+    bar.w = 9;
+    bar.x -= 3;
+    bar.h = bar.h / (pilot_rope_maxlen - pilot_rope_minlen);
+    bar.y -= (players[plr].pilot.rope->nodelen-pilot_rope_minlen) * bar.h + bar.h/2;
+    fill_box(screen,bar.x,bar.y,bar.w,bar.h, col_rope);
+    draw_line(screen,bar.x,bar.y,bar.x+3,bar.y,col_black);
+    draw_line(screen,bar.x+6,bar.y,bar.x+9,bar.y,col_black);
+    draw_line(screen,bar.x,bar.y+bar.h,bar.x+2,bar.y+bar.h,col_black);
+    draw_line(screen,bar.x+6,bar.y+bar.h,bar.x+9,bar.y+bar.h,col_black);
+
+    draw_line(screen,bar.x,bar.y,bar.x,bar.y+bar.h,col_black);
+    draw_line(screen,bar.x+bar.w,bar.y,bar.x+bar.w,bar.y+bar.h,col_black);
 }
 
 /* Draw the weapon selection screen for player */
 static void draw_player_weaponselection (int plr) {
-    SDL_Rect rect = lev_rects[plr];
+    SDL_Rect rect = viewport_rects[plr];
     SDL_BlitSurface (plr_weaponsel_bg, NULL, screen, &rect);
     /* Update the string surface if necessary */
     if (players[plr].specialWeapon != players[plr].ship->special
@@ -218,8 +276,9 @@ static void draw_player_weaponselection (int plr) {
         players[plr].specialWeapon = players[plr].ship->special;
         SDL_FreeSurface (plr_weapons[plr]);
         plr_weapons[plr] =
-            renderstring (Smallfont, weap2str (players[plr].specialWeapon),
-                          font_color_green);
+            renderstring (Smallfont,
+                    special_weapon[players[plr].specialWeapon].name,
+                    font_color_green);
     }
     /* Blit text to screen */
     rect.x += cam_rects[plr].w/2 - plr_weapons[plr]->w / 2;
@@ -231,14 +290,14 @@ static void draw_player_weaponselection (int plr) {
 static void draw_player_message (int plr)
 {
     SDL_Rect rect;
-    rect.x = lev_rects[plr].x + cam_rects[plr].w/2 - plr_messages[plr]->w/2;
-    rect.y = lev_rects[plr].y + cam_rects[plr].h/2 - plr_messages[plr]->h/2;
+    rect.x = viewport_rects[plr].x + cam_rects[plr].w/2 - plr_messages[plr]->w/2;
+    rect.y = viewport_rects[plr].y + cam_rects[plr].h/2 - plr_messages[plr]->h/2;
     SDL_BlitSurface (plr_messages[plr], NULL, screen, &rect);
 }
 
 #if 0 /* TODO: Activate this when you have the critical icons */
 static  void draw_player_criticals(int plr) {
-  SDL_Rect rect=lev_rects[plr];
+  SDL_Rect rect=viewport_rects[plr];
   sDL_Rect src;
   int c;
   rect.y+=10;
@@ -261,10 +320,16 @@ void draw_player_hud(void) {
     for (p = 0; p < 4; p++) {
         if (players[p].state==ALIVE || players[p].state==DEAD) {
             if(players[p].ship) {
+                /* Draw ship status information */
                 draw_player_statusbar(p);
 #if 0
                 if(players[p].ship->criticals) draw_player_criticals(p);
 #endif
+            } else {
+                /* Draw pilot status information */
+                if(players[p].pilot.rope) {
+                    draw_rope_bar(p);
+                }
             }
             if (players[p].weapon_select)
                 draw_player_weaponselection (p);
@@ -282,13 +347,13 @@ void draw_radar (SDL_Rect rect, int plr) {
     if (players[plr].ship == NULL)
         return;
     for (p = 0; p < 4; p++)
-        if (p != plr && players[p].ship && players[p].ship->visible) {
-            d = atan2 (players[plr].ship->x - players[p].ship->x,
-                       players[plr].ship->y - players[p].ship->y);
-            dx = sin (d) * 7;
-            dy = cos (d) * 7;
-            dx2 = sin (d) * 17;
-            dy2 = cos (d) * 17;
+        if (p != plr && players[p].ship && players[p].ship->visible==1) {
+            d = atan2 (players[plr].ship->physics.y - players[p].ship->physics.y,
+                    players[plr].ship->physics.x - players[p].ship->physics.x);
+            dx = cos (d) * 7;
+            dy = sin(d) * 7;
+            dx2 = cos (d) * 17;
+            dy2 = sin(d) * 17;
             draw_line (screen, rect.x - dx, rect.y - dy, rect.x - dx2,
                        rect.y - dy2, col_plrs[p]);
         }
@@ -302,17 +367,11 @@ int find_player (struct Ship * ship) {
     return -1;
 }
 
-void player_cleanup (void) {
-    clean_ships ();
-}
-
 /*** PLAYER ANIMATION ***/
 void animate_players ()
 {
     struct dllist *ships;
     int n,newx,newy;
-    if (plr_teams_left == 0 && endgame == -1)
-        endgame = 30;           /* In case of tie game, end it */
     for (n = 0; n < 4; n++) {
         if (players[n].state!=ALIVE)
             continue;
@@ -324,30 +383,31 @@ void animate_players ()
             players[n].recall_cooloff--;
         /* Weapon selection */
         if (players[n].weapon_select) {
-            if (players[n].ship->onbase == 0) {
+            if (players[n].ship->physics.hitground != TER_BASE) {
                 players[n].weapon_select = 0;
             } else {
                 if (players[n].controller.axis[1] > 0
                     && players[n].ship->cooloff == 0) {
                     players[n].ship->special--;
-                    if (players[n].ship->special < 1)
-                        players[n].ship->special = WeaponCount - 1;
+                    if (players[n].ship->special < 0)
+                        players[n].ship->special = special_weapon_count() - 1;
                     players[n].ship->cooloff = 5;       /* We borrow the weapon cooloff */
                     players[n].ship->energy = 0;
                 } else if (players[n].controller.axis[1] < 0
                            && players[n].ship->cooloff == 0) {
                     players[n].ship->special++;
-                    if (players[n].ship->special == WeaponCount)
-                        players[n].ship->special = 1;
+                    if (players[n].ship->special == special_weapon_count())
+                        players[n].ship->special = 0;
                     players[n].ship->cooloff = 5;
                     players[n].ship->energy = 0;
                 }
             }
         }
         if (players[n].ship == NULL) {
-            /* End of game ? */
+            /* End game when pilot is on a base when there is only one */
+            /* team left and playmode is "last player must land" */
             if (endgame == -1 && game_settings.endmode
-                && players[n].pilot.onbase) {
+                && players[n].pilot.walker.physics.hitground==TER_BASE) {
                 if (plr_teams_left < 2)
                     endgame = 30;
             }
@@ -355,15 +415,16 @@ void animate_players ()
             ships = ship_list;
             while (ships) {
                 struct Ship *ship=ships->data;
-                if (players[n].pilot.x >= ship->x - 8
-                    && players[n].pilot.x <= ship->x + 8)
-                    if (players[n].pilot.y +
-                        players[n].pilot.sprite[0]->h >= ship->y - 8
-                        && players[n].pilot.y +
-                        players[n].pilot.sprite[0]->h - 2 <=
-                        ship->y + 8)
+                if (players[n].pilot.walker.physics.x >= ship->physics.x - 8
+                    && players[n].pilot.walker.physics.x <= ship->physics.x + 8)
+                    if (players[n].pilot.walker.physics.y >= ship->physics.y - 8
+                        && players[n].pilot.walker.physics.y <= ship->physics.y
+                        + 8)
                         if (find_player (ship) < 0
-                            && ship->eject_cooloff == 0) {
+                            && ship->eject_cooloff == 0)
+                        {
+                            /* Suitable ship found, remove pilot from level */
+                            remove_pilot(&players[n].pilot);
                             players[n].ship = ship;
                             players[n].recall_cooloff = 0;
                             if (players[n].ship->color == Grey)
@@ -372,28 +433,21 @@ void animate_players ()
                 ships = ships->next;
             }
         } else {
-            /* End of game ? */
+            /* End game when ship is on a base when there is only one */
+            /* team left and playmode is "last player must land" */
             if (endgame == -1 && game_settings.endmode
-                && players[n].ship->onbase) {
+                && players[n].ship->physics.hitground==TER_BASE) {
                 if (plr_teams_left < 2)
                     endgame = 30;
             }
         }
         /* Update camera position */
         if (players[n].ship) {
-            newx = Round(players[n].ship->x);
-            newy = Round(players[n].ship->y);
+            newx = Round(players[n].ship->physics.x);
+            newy = Round(players[n].ship->physics.y);
         } else {
-            newx = Round(players[n].pilot.x);
-            newy = Round(players[n].pilot.y);
-            if (players[n].pilot.parachuting) {
-                newy +=
-                    players[n].pilot.sprite[2]->h -
-                    players[n].pilot.sprite[0]->h;
-                newx +=
-                    players[n].pilot.sprite[2]->w / 2 -
-                    players[n].pilot.sprite[0]->w / 2;
-            }
+            newx = Round(players[n].pilot.walker.physics.x);
+            newy = Round(players[n].pilot.walker.physics.y);
         }
         /* If viewport width or height is greater than that of the */
         /* level, x or y will be set to a negative value and luola */
@@ -408,6 +462,69 @@ void animate_players ()
             cam_rects[n].y = 0;
         else if (cam_rects[n].y > lev_level.height - cam_rects[n].h)
             cam_rects[n].y = lev_level.height - cam_rects[n].h;
+    }
+}
+
+/* Generic input handling */
+void player_key_update (int plr) {
+    struct Ship *ship;
+    if(players[plr].state!=ALIVE) return;
+    if (players[plr].ship) {
+        if (players[plr].ship->state!=INTACT) {
+            if (players[plr].controller.weapon2)
+                eject_pilot (plr);
+            return;
+        }
+        if (players[plr].ship->frozen)
+            return;
+        /* Weapon selection */
+        if (players[plr].ship->physics.hitground==TER_BASE && players[plr].controller.axis[0] < 0) {
+            players[plr].weapon_select = 1;
+        } else
+            players[plr].weapon_select = 0;
+        /* Eject pilot */
+        if (players[plr].controller.axis[0] < 0
+            && players[plr].controller.weapon1 &&
+            game_settings.eject) {
+            eject_pilot (plr);
+            return;
+        }
+        if (players[plr].ship->darting)
+            return;
+        /* Remote control */
+        if (players[plr].ship->remote_control) {
+            if ((int) players[plr].ship->remote_control > 1)
+                ship = players[plr].ship->remote_control;
+            else
+                return; /* If you are being remote controlled, controls are disabled */
+        } else
+            ship = players[plr].ship;
+        if (players[plr].controller.weapon2 && ship != players[plr].ship) {
+            /* Disengage remote control */
+            remote_control(players[plr].ship, 0);
+            return;
+        }
+        /* Normal controls */
+        ship->thrust = players[plr].controller.axis[0] > 0;
+        ship->turn = players[plr].controller.axis[1] * SHIP_TURN_SPEED;
+        if ((ship->criticals & CRITICAL_LTHRUSTER) && ship->turn > 0)
+            ship->turn = 0;
+        else if ((ship->criticals & CRITICAL_RTHRUSTER) && ship->turn < 0)
+            ship->turn = 0;
+        ship->fire_weapon = players[plr].controller.weapon1
+            && !(ship->criticals & CRITICAL_STDWEAPON);
+        if (ship->fire_special_weapon != players[plr].controller.weapon2
+            && !(ship->criticals & CRITICAL_SPECIAL)) {
+            if(special_weapon[ship->special].singleshot) {
+                ship_fire_special(ship);
+                ship->fire_special_weapon = 0;
+                players[plr].controller.weapon2 = 0;
+            } else {
+                ship->fire_special_weapon = players[plr].controller.weapon2;
+            }
+        }
+    } else {
+        control_pilot (plr);
     }
 }
 
@@ -492,81 +609,6 @@ void player_joybuttonhandler (SDL_JoyButtonEvent * button)
     }
 }
 
-/* Generic input handling (this is where the real magic happens) */
-void player_key_update (unsigned char plr) {
-    struct Ship *ship;
-    if(players[plr].state!=ALIVE) return;
-    if (players[plr].ship) {
-        if (players[plr].ship->dead) {
-            if (players[plr].controller.weapon2)
-                eject_pilot (plr);
-            return;
-        }
-        if (players[plr].ship->frozen)
-            return;
-        /* Weapon selection */
-        if (players[plr].ship->onbase && players[plr].controller.axis[0] < 0) {
-            players[plr].weapon_select = 1;
-        } else
-            players[plr].weapon_select = 0;
-        if (players[plr].weapon_select) {
-        }
-        /* Eject pilot */
-        if (players[plr].controller.axis[0] < 0
-            && players[plr].controller.weapon1 &&
-            game_settings.eject) {
-            eject_pilot (plr);
-            return;
-        }
-        if (players[plr].ship->darting)
-            return;
-        /* Remote control */
-        if (players[plr].ship->remote_control) {
-            if ((int) players[plr].ship->remote_control > 1)
-                ship = players[plr].ship->remote_control;
-            else
-                return; /* If you are being remote controlled, controls are disabled */
-        } else
-            ship = players[plr].ship;
-        if (players[plr].controller.weapon2 && ship != players[plr].ship) {
-            /* Disengage remote control */
-            ship_fire (players[plr].ship, SpecialWeapon);
-            return;
-        }
-        /* Normal controls */
-        ship->thrust = players[plr].controller.axis[0] > 0;
-        ship->turn = players[plr].controller.axis[1] * TURN_SPEED;
-        if ((ship->criticals & CRITICAL_LTHRUSTER) && ship->turn < 0)
-            ship->turn = 0;
-        else if ((ship->criticals & CRITICAL_RTHRUSTER) && ship->turn > 0)
-            ship->turn = 0;
-        ship->fire_weapon = players[plr].controller.weapon1
-            && !(ship->criticals & CRITICAL_STDWEAPON);
-        if (ship->fire_special_weapon != players[plr].controller.weapon2
-            && !(ship->criticals & CRITICAL_SPECIAL)) {
-            switch (ship->special) {
-            /* Some weapons need to be fired only once */
-            case WCloak:
-            case WShield:
-            case WGhostShip:
-            case WAfterBurner:
-            case WRepair:
-            case WRemote:
-            case WAntigrav:
-                ship_fire (ship, SpecialWeapon);
-                ship->fire_special_weapon = 0;
-                players[plr].controller.weapon2 = 0;
-                break;
-            default:
-                ship->fire_special_weapon = players[plr].controller.weapon2;
-                break;
-            }
-        }
-    } else {
-        control_pilot (plr);
-    }
-}
-
 /* If a grenade explodes in the woods and there is nobody around to hear it,
  * does it really make a sound ? */
 int hearme (int x, int y) {
@@ -576,9 +618,9 @@ int hearme (int x, int y) {
     for (p = 0; p < 4; p++)
         if (players[p].state==ALIVE) {
             if (players[p].ship)
-                d = hypot (players[p].ship->x - x, players[p].ship->y - y);
+                d = hypot (players[p].ship->physics.x - x, players[p].ship->physics.y - y);
             else
-                d = hypot (players[p].pilot.x - x, players[p].pilot.y - y);
+                d = hypot (players[p].pilot.walker.physics.x - x, players[p].pilot.walker.physics.y - y);
             if (d < dist) {
                 nearest = p;
                 dist = d;
@@ -612,9 +654,10 @@ void set_player_message (int plr, FontSize size, SDL_Color color,
 /* This doesn't actually set player state to BURIED. That is set */
 /* in animation.c code after the player has been dead for FADE_STEP frames */
 /* so the fadeout animation can be drawn. */
-void buryplayer (int plr) {
+void kill_player (int plr) {
     if(players[plr].state!=ALIVE) {
-        printf("Bug! buryplayer(%d): Player is already dead or inactive!\n",plr);
+        fprintf(stderr,"Bug! %s(%d): Player is already dead or inactive!\n",
+                __func__,plr);
     } else {
         players[plr].state=DEAD;
         players[plr].ship=NULL;
@@ -624,36 +667,6 @@ void buryplayer (int plr) {
         set_player_message (plr, Bigfont, font_color_red, -1, "Dead");
         kill_plr_screen (plr);
     }
-}
-
-/* Eject the pilot */
-void eject_pilot (int plr) {
-    pilot_any_ejected++;
-    if (players[plr].ship) {
-        players[plr].ship->fire_weapon = 0;
-        players[plr].ship->thrust = 0;
-        if (players[plr].ship->dead == 0)
-            players[plr].ship->turn = 0;
-        if (players[plr].ship->afterburn > 1) {
-            players[plr].ship->maxspeed = MAXSPEED;
-            players[plr].ship->afterburn = 1;
-        }
-        players[plr].pilot.x = players[plr].ship->x;   /* If you eject a player without a ship */
-        players[plr].pilot.y = players[plr].ship->y - players[plr].pilot.hy;  /* you'd better set the coordinates yourself... */
-        players[plr].ship->eject_cooloff = 70;
-        players[plr].ship = NULL;
-    }
-    memset (&players[plr].controller, 0, sizeof (GameController));
-    players[plr].weapon_select = 0;
-    players[plr].pilot.vector = makeVector (0, 3);
-    players[plr].pilot.rope = 0;
-    players[plr].pilot.walking = 0;
-    players[plr].pilot.updown = 0;
-    players[plr].pilot.lock = 0;
-    players[plr].pilot.parachuting = 0;
-    players[plr].pilot.maxspeed = MAXSPEED;
-    players[plr].pilot.hx = players[plr].pilot.sprite[0]->w / 2;
-    players[plr].pilot.hy = players[plr].pilot.sprite[0]->h;
 }
 
 /*** Recall the ship to the pilot ***/
@@ -678,18 +691,16 @@ void recall_ship (int plr) {
         }
         ships = ships->next;
     }
-    if (taken) {              /* If the ship is taken, it cannot be recalled */
+    if (taken) { /* If the ship is taken, it cannot be recalled */
         set_player_message (plr, Smallfont, font_color_green, 25,
                             "Ship taken, cannot recall");
         return;
     }
     /* Find good coordinates */
-    tx = players[plr].pilot.x;
-    ty = players[plr].pilot.y;
-    while (ty > players[plr].pilot.y - 20) {
-        if (ty <= 0
-            || (lev_level.solid[tx][ty] != TER_FREE
-                && lev_level.solid[tx][ty] != TER_TUNNEL)) {
+    tx = players[plr].pilot.walker.physics.x;
+    ty = players[plr].pilot.walker.physics.y-1;
+    while (ty > players[plr].pilot.walker.physics.y - 20) {
+        if (is_free(tx,ty)==0) {
             ty++;
             break;
         }
@@ -697,30 +708,25 @@ void recall_ship (int plr) {
     }
     /* Recall the ship */
     if (ship) {     /* Teleport the existing ship */
-        drop_jumppoint (ship->x, ship->y, plr + 20);
         drop_jumppoint (tx, ty, plr + 20);
-        ship->vector.x = 0;
-        ship->vector.y = 0;
+        drop_jumppoint (ship->physics.x, ship->physics.y, plr + 20);
+        ship->physics.vel.x = 0;
+        ship->physics.vel.y = 0;
     } else {        /* Ship probably destroyed, create a new one */
-        SpecialObj *jump;
+        struct SpecialObj *jump;
         ship =
             create_ship (Red + plr, players[plr].standardWeapon,
                          players[plr].specialWeapon);
-        ship->x = tx;
-        ship->y = ty;
+        ship->physics.x = tx;
+        ship->physics.y = ty;
         ship->energy = 0.3;
         ship->health = 0.5;
-        jump = malloc (sizeof (SpecialObj));
-        jump->x = tx - 16;
-        jump->y = ty - 16;
-        jump->owner = -1;
-        jump->frame = 0;
-        jump->timer = 0;
-        jump->age = JPSHORTLIFE;
-        jump->type = WarpExit;
-        jump->link = NULL;
-        addspecial (jump);
+        /* Create a decorative jumppoint */
+        jump = make_jumppoint(tx,ty,-1,1);
+        jump->life = jump->frames*1.5;
+        jump->hitship = NULL;
+        add_special(jump);
     }
-    players[plr].recall_cooloff=JPLONGLIFE*2;
+    players[plr].recall_cooloff=4*GAME_SPEED;
 }
 

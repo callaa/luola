@@ -1,6 +1,6 @@
 /*
- * Luola - 2D multiplayer cavern-flying game
- * Copyright (C) 2003-2005 Calle Laakkonen
+ * Luola - 2D multiplayer cave-flying game
+ * Copyright (C) 2003-2006 Calle Laakkonen
  *
  * File        : intro.c
  * Description : Intro and configuration screens
@@ -25,7 +25,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "defines.h"    /* MAX_CRITTERS */
 #include "console.h"
 #include "intro.h"
 #include "player.h"
@@ -207,16 +206,6 @@ static struct Menu *make_weapon_menu(struct Menu *parent) {
     m = create_menu(0,parent,NULL,NULL,NULL,0);
     add_caption(m,"Weapon settings");
 
-    val.value = &game_settings.gravity_bullets;
-    item = add_menu_item(m,MNU_ITEM_TOGGLE,1,
-            menu_txt_label("Projectiles %s affected by gravity"),val);
-    item->text_enabled="are"; item->text_disabled="are not";
-
-    val.value = &game_settings.wind_bullets;
-    item = add_menu_item(m,MNU_ITEM_TOGGLE,2,
-            menu_txt_label("Projectiles %s affected by wind"),val);
-    item->text_enabled="are"; item->text_disabled="are not";
-
     val.value = &game_settings.large_bullets;
     item = add_menu_item(m,MNU_ITEM_TOGGLE,3,
             menu_txt_label("Projectiles are drawn %s"),val);
@@ -234,19 +223,18 @@ static struct Menu *make_weapon_menu(struct Menu *parent) {
     item = add_menu_item(m,MNU_ITEM_TOGGLE,7,
             menu_txt_label("Critical hits are %s"),val);
 
-    val.value = &game_settings.ls.soldiers;
-    val.max = MAX_PLR_CRITTERS;
+    val.value = &game_settings.soldiers;
+    val.max = 50;
     item = add_menu_item(m,MNU_ITEM_VALUE,8,
             menu_txt_label("Max infantry per player: %d"),val);
 
-    val.value = &game_settings.ls.helicopters;
+    val.value = &game_settings.helicopters;
     item = add_menu_item(m,MNU_ITEM_VALUE,9,
             menu_txt_label("Max helicopters per player: %d"),val);
 
     add_ok(m);
 
     return m;
-
 }
 
 /* Create the ship settings menu */
@@ -309,18 +297,24 @@ static struct Menu *make_game_menu(struct Menu *parent) {
     item = add_menu_item(m,MNU_ITEM_VALUE,1,
             menu_func_label(jumplife_label),val);
 
-    val.value = &game_settings.enable_smoke;
+    val.value = &game_settings.onewayjp;
     item = add_menu_item(m,MNU_ITEM_TOGGLE,2,
+            menu_txt_label("Jump points are %s-way"),val);
+    item->text_enabled="one";
+    item->text_disabled="two";
+
+    val.value = &game_settings.enable_smoke;
+    item = add_menu_item(m,MNU_ITEM_TOGGLE,3,
             menu_txt_label("Smoke is %s"),val);
 
     val.value = &game_settings.endmode;
-    item = add_menu_item(m,MNU_ITEM_TOGGLE,2,
+    item = add_menu_item(m,MNU_ITEM_TOGGLE,4,
             menu_txt_label("Endmode: %s"),val);
     item->text_enabled="last player lands on a base";
     item->text_disabled = "one player survives";
 
     val.value = &game_settings.bigscreens;
-    item = add_menu_item(m,MNU_ITEM_TOGGLE,2,
+    item = add_menu_item(m,MNU_ITEM_TOGGLE,5,
             menu_txt_label("Player screen size: %s"),val);
     item->text_enabled="maximum";
     item->text_disabled = "quarter";
@@ -344,7 +338,7 @@ static struct Menu *make_critter_menu(struct Menu *parent) {
     item = add_menu_item(m,MNU_ITEM_TOGGLE,1,
             menu_txt_label("Random critters are %s"),val);
 
-    val.max = MAX_CRITTERS;
+    val.max = 50;
     val.value = &game_settings.ls.cows;
     item = add_menu_item(m,MNU_ITEM_VALUE,1,
             menu_txt_label("Cows: %d"),val);
@@ -353,11 +347,11 @@ static struct Menu *make_critter_menu(struct Menu *parent) {
     item = add_menu_item(m,MNU_ITEM_VALUE,1,
             menu_txt_label("Birds: %d"),val);
 
-    val.value = &game_settings.ls.birds;
+    val.value = &game_settings.ls.fish;
     item = add_menu_item(m,MNU_ITEM_VALUE,1,
             menu_txt_label("Fish: %d"),val);
 
-    val.value = &game_settings.ls.birds;
+    val.value = &game_settings.ls.bats;
     item = add_menu_item(m,MNU_ITEM_VALUE,1,
             menu_txt_label("Bats: %d"),val);
 

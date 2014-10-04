@@ -1,5 +1,5 @@
 /*
- * Luola - 2D multiplayer cavern-flying game
+ * Luola - 2D multiplayer cave-flying game
  * Copyright (C) 2001-2005 Calle Laakkonen
  *
  * File        : level.c
@@ -31,7 +31,7 @@
 #include "level.h"
 #include "levelfile.h"
 #include "particle.h"
-#include "weather.h"
+#include "decor.h"
 #include "animation.h"
 #include "ship.h"   /* for bump_ship() */
 
@@ -65,17 +65,30 @@ static Star lev_stars[15];
 
 /* Exported globals */
 Uint32 burncolor[FIRE_FRAMES];
-Uint32 lev_watercolrgb[3];
 Uint32 lev_watercol;
 SDL_Rect cam_rects[4];
-SDL_Rect lev_rects[4];
+SDL_Rect viewport_rects[4]; /* Use only x and y. w and h get overwritten by SDL_BlitSurface */
 Level lev_level;
-Vector gravity;
+
+/* Bullet hole bitmap */
+#define HOLE_W 9
+#define HOLE_H 9
+static const Uint8 hole_bm[HOLE_H][HOLE_W] = {
+    {1, 1, 1, 1, 0, 1, 1, 1, 1},
+    {1, 1, 1, 0, 0, 0, 1, 1, 1},
+    {1, 0, 0, 0, 0, 0, 0, 0, 1},
+    {1, 0, 0, 0, 0, 0, 0, 0, 1},
+    {0, 0, 0, 0, 0, 0, 0, 0, 0},
+    {1, 0, 0, 0, 0, 0, 0, 0, 1},
+    {1, 0, 0, 0, 0, 0, 0, 0, 1},
+    {1, 1, 1, 0, 0, 0, 1, 1, 1},
+    {1, 1, 1, 1, 0, 1, 1, 1, 1}
+};
 
 static int touch_wall (int x, int y)
 {
     int x1, y1;
-    unsigned char solid;
+    int solid;
     for (x1 = x - 3; x1 < x + 4; x1++) {
         if (x1 >= lev_level.width)
             return 0;
@@ -118,9 +131,9 @@ static inline void draw_level (void)
     for (p = 0; p < 4; p++) {
         if (players[p].state==ALIVE || players[p].state==DEAD) {
             SDL_BlitSurface (lev_level.terrain, &cam_rects[p], screen,
-                             &lev_rects[p]);
+                             &viewport_rects[p]);
             if(level_settings.stars)
-                draw_stars (&cam_rects[p], &lev_rects[p]);
+                draw_stars (&cam_rects[p], &viewport_rects[p]);
         }
     }
 }
@@ -129,7 +142,6 @@ static inline void draw_level (void)
 void init_level (void)
 {
     int r,red, green, blue;
-    gravity = makeVector (0, -GRAVITY);
     lev_watercol = map_rgba(0x64,0x64,0xff,0xff);
     level_effects = NULL;
     lev_lastfx = NULL;
@@ -213,14 +225,8 @@ void load_level (struct LevelFile *lev) {
     find_color(TER_WATER,lev->settings->palette.entries,
             collmap->format->palette,&tmpcol);
     lev_watercol = map_rgba(tmpcol->r, tmpcol->g, tmpcol->b,0xff);
-    lev_watercolrgb[0] = tmpcol->r;
-    lev_watercolrgb[1] = tmpcol->g;
-    lev_watercolrgb[2] = tmpcol->b;
     /* Calculate underwater clay colour */
-    tmpcol->r = (lev_watercolrgb[0] + 255) / 2;
-    tmpcol->g = (lev_watercolrgb[0] + 200) / 2;
-    tmpcol->b = (lev_watercolrgb[0] + 128) / 2;
-    col_clay_uw = map_rgba(tmpcol->r, tmpcol->g, tmpcol->b, 0xff);
+    col_clay_uw = map_rgba((tmpcol->r+255)/2, (tmpcol->r+200)/2, (tmpcol->r+128)/2, 0xff);
     /* Get snow colour */
     tmpcol = NULL;
     find_color(TER_SNOW,lev->settings->palette.entries,
@@ -323,6 +329,7 @@ void load_level (struct LevelFile *lev) {
         }
 }
 
+/* Release level from memory */
 void unload_level (void)
 {
     int x;
@@ -342,41 +349,17 @@ void unload_level (void)
     lev_lastfx = NULL;
 }
 
-int is_walkable (int x, int y)
-{
-    int s;
-    if (y >= lev_level.height - 1)
-        return 1;
-    s = lev_level.solid[x][y];
-    if (s == TER_FREE || s == TER_WATER)
-        return 0;
-    if (s >= TER_WATERFU && s <= TER_WATERFL)
-        return 0;
-    if (s == TER_TUNNEL || s == TER_WALKWAY)
-        return 0;
-    return 1;
-}
-
-int is_water (int x, int y)
-{
-    if (lev_level.solid[x][y] == TER_WATER
-        || (lev_level.solid[x][y] >= TER_WATERFU
-            && lev_level.solid[x][y] <= TER_WATERFL))
-        return 1;
-    return 0;
-}
-
 /* Pixel perfect collision detection. */
 int hit_solid_line (int startx, int starty, int endx, int endy, int *newx,
                      int *newy)
 {
     int dx, dy, ax, ay, sx, sy, x, y, d;
-    if (endx < 0 || endx >= lev_level.width) {
+    if (startx<0 || endx < 0 || startx >= lev_level.width || endx >= lev_level.width) {
         *newx = endx<0?0:endx>=lev_level.width?lev_level.width-1:endx;
         *newy = endy<0?0:endy>=lev_level.height?lev_level.height-1:endy;
         return TER_INDESTRUCT;
     }
-    if (endy < 0 || endy >= lev_level.height) {
+    if (startx<0 || endy < 0 || startx >= lev_level.width || endy >= lev_level.height) {
         *newx = endx<0?0:endx>=lev_level.width?lev_level.width-1:endx;
         *newy = endy<0?0:endy>=lev_level.height?lev_level.height-1:endy;
         return TER_INDESTRUCT;
@@ -392,7 +375,7 @@ int hit_solid_line (int startx, int starty, int endx, int endy, int *newx,
     if (ax > ay) {
         d = ay - (ax >> 1);
         while (x != endx) {
-            if (hit_solid (x, y) > 0) {
+            if (is_solid (x, y)) {
                 *newx = x;
                 *newy = y;
                 return lev_level.solid[x][y];
@@ -407,7 +390,7 @@ int hit_solid_line (int startx, int starty, int endx, int endy, int *newx,
     } else {
         d = ax - (ay >> 1);
         while (y != endy) {
-            if (hit_solid (x, y) > 0) {
+            if (is_solid (x, y)) {
                 *newx = x;
                 *newy = y;
                 return lev_level.solid[x][y];
@@ -422,7 +405,7 @@ int hit_solid_line (int startx, int starty, int endx, int endy, int *newx,
     }
     *newx = endx;
     *newy = endy;
-    return hit_solid (startx, starty);
+    return lev_level.solid[endx][endy];
 }
 
 int find_rainy (int x)
@@ -446,13 +429,7 @@ void start_burning (int x, int y)
     LevelFX *fx;
     if (x <= 0 || y <= 0 || x >= lev_level.width || y >= lev_level.height)
         return;
-    /* Note this one here. It assumes that the level palette entries go in the order of
-       indestructable,water,base .
-       This order should not change, so it should be safe to do this 'if' lazily
-     */
-    if ((lev_level.solid[x][y] >= TER_INDESTRUCT
-         && lev_level.solid[x][y] <= TER_BASE)
-        || lev_level.solid[x][y] == TER_BASEMAT)
+    if (is_water(x,y) || is_indestructable(x,y))
         return;
     newentry = malloc (sizeof (struct LevelEffects));
     newentry->next = NULL;
@@ -481,11 +458,7 @@ void start_melting (int x, int y, unsigned int recurse)
     if (x <= 0 || y <= 0 || x >= lev_level.width || y >= lev_level.height
         || recurse == 0)
         return;
-    if (lev_level.solid[x][y] == TER_INDESTRUCT
-        || lev_level.solid[x][y] == TER_WATER)
-        return;
-    if ((lev_level.solid[x][y] == TER_BASEMAT
-         || lev_level.solid[x][y] == TER_BASE) && level_settings.indstr_base)
+    if (is_water(x,y) || is_indestructable(x,y))
         return;
     newentry = malloc (sizeof (struct LevelEffects));
     newentry->next = NULL;
@@ -512,7 +485,7 @@ void alter_level (int x, int y, int recurse, LevelFXType type)
 {
     struct LevelEffects *newentry;
     LevelFX *fx;
-    if (recurse == 0)
+    if (recurse == 0 || x<0 || y<0 || x>=lev_level.width || y>=lev_level.height)
         return;
     newentry = malloc (sizeof (struct LevelEffects));
     newentry->next = NULL;
@@ -551,6 +524,67 @@ void alter_level (int x, int y, int recurse, LevelFXType type)
     lev_lastfx = newentry;
 }
 
+/* Make a bullet hole in the ground */
+void make_hole(int x,int y) {
+    if (lev_level.solid[x][y] != TER_INDESTRUCT
+        && !(level_settings.indstr_base
+             && (lev_level.solid[x][y] == TER_BASE
+                 || lev_level.solid[x][y] == TER_BASEMAT))) {
+        int fx,fy;
+        for (fx = 0; fx < HOLE_W; fx++) {
+            for (fy = 0; fy < HOLE_H; fy++) {
+                int terrain;
+                int rx,ry;
+                if (hole_bm[fx][fy])
+                    continue;
+                rx = fx - HOLE_W/2 + x;
+                ry = fy - HOLE_H/2 + y;
+                if (rx < 0 || ry < 0 || rx >= lev_level.width
+                    || ry >= lev_level.height)
+                    continue;
+                terrain = lev_level.solid[rx][ry];
+                if((ter_semisolid(terrain) || ter_solid(terrain))
+                    && ter_indestructable(terrain)==0)
+                {
+                    if(terrain == TER_BASE)
+                        lev_level.base_area--;
+                    if (terrain == TER_UNDERWATER || terrain == TER_ICE) {
+                        lev_level.solid[rx][ry] = TER_WATER;
+                        putpixel (lev_level.terrain, rx, ry, lev_watercol);
+                    } else {
+                        lev_level.solid[rx][ry] = TER_FREE;
+                        putpixel (lev_level.terrain, rx, ry, col_black);
+                    }
+                }
+            }
+        }
+    }
+}
+
+/* Burn a patch of ground */
+void burn_hole(int x,int y) {
+    int fx,fy;
+    if(is_burnable(x,y))
+        start_burning(x,y);
+    for (fx = 0; fx < HOLE_W; fx++)
+        for (fy = 0; fy < HOLE_H; fy++) {
+            int rx,ry,terrain;
+            if (hole_bm[fx][fy])
+                continue;
+            rx = fx - HOLE_W/2 + x;
+            ry = fy - HOLE_H/2 + y;
+            if (rx < 0 || ry < 0 || rx >= lev_level.width
+                || ry >= lev_level.height)
+                continue;
+            terrain = lev_level.solid[rx][ry];
+            if((ter_semisolid(terrain) || ter_solid(terrain))
+                && ter_indestructable(terrain)==0)
+            {
+                putpixel (lev_level.terrain, rx, ry, col_gray);
+            }
+        }
+}
+
 void animate_level (void)
 {
     struct LevelEffects *list = level_effects;
@@ -558,7 +592,7 @@ void animate_level (void)
     double f;
     int v, tx, ty, nx, ny;
     char solid;
-    Particle *part;
+    struct Particle *part;
     /* Base regeneration */
     if(lev_level.base && lev_level.base_area<lev_level.regen_area) {
         if(lev_level.regen_timer>BASE_REGEN_SPEED) {
@@ -635,16 +669,14 @@ void animate_level (void)
                             || solid == TER_COMBUSTABL2)
                             start_burning (nx, ny);
                         else if (solid == TER_EXPLOSIVE)
-                            spawn_clusters (nx, ny, 6, Cannon);
+                            spawn_clusters (nx, ny,5.6, 6, make_bullet);
                         else if (solid == TER_EXPLOSIVE2)
-                            spawn_clusters (nx, ny, 6, 
-                                            ((rand () % 11) ==
-                                             0) ? Grenade : Cannon);
+                            spawn_clusters (nx, ny,5.6, 3, make_grenade);
                         else if (game_settings.enable_smoke
                                  && solid == TER_FREE && cos (f) < 0
                                  && rand () % 3 == 1) {
                             part = make_particle (nx, ny, 9);
-                            part->vector.y = 2.5;
+                            part->vector.y = -2.5;
                             part->vector.x = -weather_wind_vector;
                             part->color[0] = 255;
                             part->color[1] = 178;
@@ -696,7 +728,7 @@ void animate_level (void)
                     else if (game_settings.enable_smoke && solid == TER_FREE
                              && cos (f) < 0 && rand () % 3 == 1) {
                         part = make_particle (nx, ny, 9);
-                        part->vector.y = 2.5;
+                        part->vector.y = -2.5;
                         part->vector.x = -weather_wind_vector;
                         part->color[0] = 0;
                         part->color[1] = 255;

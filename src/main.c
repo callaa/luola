@@ -1,6 +1,6 @@
 /*
- * Luola - 2D multiplayer cavern-flying game
- * Copyright (C) 2001-2005 Calle Laakkonen
+ * Luola - 2D multiplayer cave-flying game
+ * Copyright (C) 2001-2006 Calle Laakkonen
  *
  * File        : main.c
  * Description : Main module
@@ -34,7 +34,7 @@
 #include "hotseat.h"
 #include "level.h"
 #include "player.h"
-#include "weapon.h"
+#include "projectile.h"
 #include "animation.h"
 #include "special.h"
 #include "critter.h"
@@ -49,7 +49,7 @@
 static void show_version (void) {
     const SDL_version *sdld;
     sdld = SDL_Linked_Version ();
-    printf ("%s version %s (Stable branch)\n", PACKAGE, VERSION);
+    printf ("%s version %s (Development branch)\n", PACKAGE, VERSION);
     printf ("Compiled with SDL version %d.%d.%d\n", SDL_MAJOR_VERSION,
             SDL_MINOR_VERSION, SDL_PATCHLEVEL);
     printf ("Dynamically linked SDL version is %d.%d.%d\n", sdld->major,
@@ -91,7 +91,7 @@ static int load_data(void) {
     init_pilots(graphics);
     init_ships(graphics);
     init_specials(graphics);
-    init_weapons(graphics);
+    init_projectiles(graphics);
 
     ldat_free(graphics);
 
@@ -113,7 +113,7 @@ int main (int argc, char *argv[]) {
                 return 0;
         }
     }
-    /* Check if luola's home directory exists */
+    /* Check if luola's home directory exists and create it if necessary */
     check_homedir ();
 
     /* Seed the random number generator */
@@ -150,7 +150,7 @@ int main (int argc, char *argv[]) {
         /* Intro screen */
         rval = game_menu_screen ();
         if (rval == INTRO_RVAL_EXIT)
-            return 0;
+            break;
         /* Play ! */
         if (rval == INTRO_RVAL_STARTGAME)
             hotseat_game ();

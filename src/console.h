@@ -1,6 +1,6 @@
 /*
- * Luola - 2D multiplayer cavern-flying game
- * Copyright (C) 2001-2005 Calle Laakkonen
+ * Luola - 2D multiplayer cave-flying game
+ * Copyright (C) 2001-2006 Calle Laakkonen
  *
  * File        : console.h
  * Description : 
@@ -21,8 +21,8 @@
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  */
 
-#ifndef L_CONSOLE_H
-#define L_CONSOLE_H
+#ifndef CONSOLE_H
+#define CONSOLE_H
 
 #include "SDL.h"
 
@@ -52,7 +52,7 @@ extern Uint32 col_green;
 extern Uint32 col_blue;
 extern Uint32 col_cyan;
 extern Uint32 col_white;
-extern Uint32 col_transculent;
+extern Uint32 col_translucent;
 extern Uint32 col_rope;
 extern Uint32 col_plrs[4];
 extern Uint32 col_pause_backg;
@@ -72,12 +72,16 @@ extern void open_joypads();
 /* Close player joypads */
 extern void close_joypads();
 
-/* Toggle between fullscreen mode */
+/* Toggle between fullscreen and windowed mode */
 extern void toggle_fullscreen(void);
 
 /* Map color to RGBA value in current pixel format. Generates a */
 /* SDL_gfx compatible value if SDL_gfx is used. */
 extern Uint32 map_rgba(Uint8 r,Uint8 g,Uint8 b,Uint8 a);
+
+/* Decompose color to r,g,b and a values. */
+/* SDL_gfx format is used if enabled */
+extern void unmap_rgba(Uint32 c, Uint8 *r,Uint8 *g,Uint8 *b,Uint8 *a);
 
 /* Draw a box outline */
 extern void draw_box (int x, int y, int w, int h, int width, Uint32 color);
@@ -88,9 +92,6 @@ extern void fill_box (SDL_Surface *surface,int x ,int y,int w,int h,Uint32 color
 /* Copy raw pixels from one surface to another */
 extern void pixelcopy (Uint32 * srcpix, Uint32 * pixels, int w, int h,
                        int srcpitch, int pitch);
-
-/* Flip surface upside down. A new surface is returned. */
-extern SDL_Surface *flip_surface (SDL_Surface * original);
 
 /* Make a deep copy of a surface */
 extern SDL_Surface *copy_surface (SDL_Surface * original);
@@ -104,7 +105,7 @@ extern SDL_Rect cliprect (int x1, int y1, int w1, int h1, int x2, int y2,
                           int w2, int h2);
 
 /* Return a line segment inside a rectangle */
-extern char clip_line (int *x1, int *y1, int *x2, int *y2, int left, int top,
+extern int clip_line (int *x1, int *y1, int *x2, int *y2, int left, int top,
                        int right, int bottom);
 
 /* Multiply surface color values */
@@ -114,12 +115,12 @@ extern void recolor (SDL_Surface * surface, float red, float green,
 /* Get a single pixel from a surface */
 extern Uint32 getpixel (SDL_Surface * surface, int x, int y);
 
-/* Resize a surface. New surface is returned */
+/* Resize a surface. A new surface is returned */
 extern SDL_Surface *zoom_surface (SDL_Surface *original, float aspect,float zoom);
 
 /* Display an error screen */
 extern void error_screen(const char *title, const char *exitsmg,
-        const char *message[], int lines);
+        const char *message[]);
 
 #ifndef HAVE_LIBSDL_GFX
 /* Put a single pixel on screen */

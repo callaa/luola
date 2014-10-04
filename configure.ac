@@ -1,7 +1,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.59)
-AC_INIT([Luola], [1.3.1], [calle@luolamies.org])
+AC_INIT([Luola], [1.3.2], [calle@luolamies.org])
 AC_CONFIG_SRCDIR([config.h.in])
 AC_CONFIG_HEADER([config.h])
 

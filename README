@@ -28,18 +28,17 @@ Some usage notes
 ----------------------------------------------------------------
 
 Screenshots:
- You can take a screenshot anytime by pressing F11. (that is, if you WM doesn't
- trap that key) The screenshot will be named luola_*.bmp and placed in ~./luola/
- directory. The * is the number of ticks that has elapsed since luola was
- started. This way, you can take multiple screenshots and keep them in
- chronological order.
+ You can take a screenshot anytime by pressing F11. The screenshot will be
+ named luola_*.bmp and placed in ~./luola/ directory. The * is the number of
+ ticks that has elapsed since luola was started. This way, you can
+ take multiple screenshots and keep them in chronological order.
 
 Fullscreen:
  To enter fullscreen mode, run luola with the --fullscreen parameter.
  If luola runs in fullscreen mode by default and you want to run it
  in windowed mode, use the --window paremeter. You can also switch
  between fullscreen and windowed mode by pressing alt-enter any time
- in the game. See the FAQ if you can't get fullscreen mode to work under Linux.
+ during the game.
 
 Playing the game:
 
@@ -48,18 +47,18 @@ Playing the game:
    
  * Pressing Esc ends the level.
  
- * The level ends when there is only one ship remaining or the last surviving
-   ship has landed on a base.
+ * The level ends when there is only one team remaining or a member of the
+   last surviving team lands on a base.
    
- * Pressing Weapon1 and downkey at the same time ejects the pilot. The pilot can
+ * Pressing Weapon1 and Down at the same time ejects the pilot. The pilot can
    also be ejected when the ship is dead (gray) by pressing Weapon2.
    
  * You can return to your empty ship by walking over it. You can also take over
    empty enemy ships this way...
 
- * When on a base, hold down downkey and press left/right to switch special
+ * When on a base, hold down Down key and press left/right to switch special
    weapons. (Note that when switching weapons, you lose the ammo you have.
-   Water can't turn to missiles, right?
+   Water can't turn to missiles, right?)
 
 Playmodes:
  * Normal - This is the normal playmode, nothing special
@@ -90,8 +89,7 @@ Pilot controls:
  * Shoot the rope straight up with the Down key.
 
  * You can lock the pilot controls by holding down Weapon2 key. When locked, the
-   pilot does not move, so you can aim your gun. When locked, the pilot does not
-   automaticly aim at enemies.
+   pilot does not move or autoaim, so you can aim your gun manually.
 
  * You can kick another player out of his/her ship by first attaching the ninja
    rope to it, getting as close as possible and then pressing Down+Weap1.
@@ -103,7 +101,7 @@ Pilot controls:
 Team play:
   Team play is just like normal game with 4 players, except some rules
   are enforced by the game itself. All games are actually team games as far
-  as Luola is concerned. Usually you just have only one player per team. The
+  as Luola is concerned, usually you just have only one player per team. The
   game ends when all opposing teams are destroyed. Certain weapons are team-
   aware:
    * Homing missiles only target enemy team members
@@ -147,33 +145,34 @@ Download the level packs from the luola homepage.
 The level pack contains descriptions of the levels.
 
 Luola can also use levels from pretty much any other caveflying game
-that use palette based levels. Sample level configuration files are provided
-for V-Wing and Wings levels in the tools/ subdirectory. See the LEVELFILE
-text file for more information.
+that uses palette based levels. The provided importlev utility in tools/
+subdirectory can be used to convert foreign levels to Luola format.
+Currently supported formats are V-Wing, Wings and TOU.
+See the LEVELFILE text file for more information.
 
 Level specials
 -------------------------------------------------------------------------------
 
   Jump gates:
-   Jump-gates provide permanent wormholes between two or more points in the level.
+   Jump-gates provide permanent wormholes between two points in the level.
    They activate when a player flies over them. You can set the number of
-   jump-gates per level from the level settings screen. Weapons like Megabomb
-   and Rocket can travel thru wormholes.
+   jump-gates per level from the level settings screen.
+   Large projectiles can travel thru open wormholes.
 
   Turrets:
     These are automatic turrets that fire at everybody.
     There are three types of turrets.
     1. A normal turret, has an ordinary cannon.
-    2. Grenade launcher, fires grenade shells
-    3. SAM-Site, fires homing missiles
+    2. Grenade launcher, fires grenade shells.
+    3. Missile launcher, fires homing missiles.
 
     You can change the number of turrets from the level settings screen.
 
   Critters:
     Unlike other level specials, these don't do anything, except walk
-	(or fly or swim) around and get killed. (Note. Technically, infantry and
+	(or fly or swim) around and get killed. (Technically, infantry and
 	helicopters are also critters, so some critters actually do something)
     You can enable/disable critters from the level settings screen. You can
 	also set the number of different critter species, including per player
-	limits for infantry and helicopters
+	limits for infantry and helicopters.
 

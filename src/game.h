@@ -1,6 +1,6 @@
 /*
- * Luola - 2D multiplayer cavern-flying game
- * Copyright (C) 2001-2005 Calle Laakkonen
+ * Luola - 2D multiplayer cave-flying game
+ * Copyright (C) 2001-2006 Calle Laakkonen
  *
  * File        : game.h
  * Description : Game configuration and initialization
@@ -21,8 +21,8 @@
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  */
 
-#ifndef L_GAME_H
-#define L_GAME_H
+#ifndef GAME_H
+#define GAME_H
 
 #include "SDL.h"
 
@@ -32,7 +32,7 @@
 
 #define PLAYMODE_COUNT 5
 
-typedef enum { Normal, OutsideShip, OutsideShip1, RndCritical,RndWeapon } Playmode;
+typedef enum { Normal, OutsideShip, OutsideShip1, RndCritical, RndWeapon } Playmode;
 
 struct dllist;
 
@@ -43,7 +43,6 @@ typedef struct {
     int critters;
     int cows, birds, fish, bats;
     int snowfall, stars;
-    int soldiers, helicopters;        /* These are the maximium number of hostile critters each player can have */
 } PerLevelSettings;
 
 typedef enum {JLIFE_SHORT,JLIFE_MEDIUM,JLIFE_LONG} Jumplife;
@@ -59,20 +58,20 @@ typedef struct {
     int ship_collisions;
     int coll_damage;
     Jumplife jumplife;
+    int onewayjp;
     int enable_smoke;
     int endmode;
     int eject;
     int recall;
     int bigscreens;
     /* Weapon settings */
-    int gravity_bullets;
-    int wind_bullets;
     int large_bullets;
     int weapon_switch;
     int explosions;
     int criticals;
+    int soldiers, helicopters;
     /* Level settings */
-    PerLevelSettings ls;
+    PerLevelSettings ls; /* Use level_settings instead in game code */
     int base_regen;
     /* Audio settings */
     int sounds;
@@ -91,12 +90,17 @@ typedef struct {
     int total_rounds;
 } GameStatus;
 
-/* Initialization */
+/* Load datafiles */
 extern void init_game (LDAT *miscfile);
+
+/* Reset game settings */
 extern void reset_game (void);
+
+/* Set level settings using game_settings.ls and the provided settings
+ * as sources */
 extern void apply_per_level_settings (struct LevelSettings * settings);
 
-/* Drawing */
+/* Draw the filler image on all screen quadrants */
 extern void fill_player_screens (void);
 
 /* Game over statistics screen */
@@ -105,13 +109,13 @@ extern void game_statistics (void);
 /* Ingame eventloop */
 extern void game_eventloop (void);
 
+/* Save game settings */
+extern void save_game_config (void);
+
 /* Some globals */
 extern GameInfo game_settings;
 extern PerLevelSettings level_settings;
 extern GameStatus game_status;
 extern int game_loop;
-
-/* Save game settings */
-extern void save_game_config (void);
 
 #endif

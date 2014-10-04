@@ -1,6 +1,6 @@
 /*
- * Luola - 2D multiplayer cavern-flying game
- * Copyright (C) 2004-2005 Calle Laakkonen
+ * Luola - 2D multiplayer cave-flying game
+ * Copyright (C) 2004-2006 Calle Laakkonen
  *
  * File        : list.c
  * Description : Linked list functions
@@ -94,6 +94,14 @@ int dllist_count(struct dllist *list) {
         }
     }
     return count;
+}
+
+struct dllist *dllist_find(struct dllist *list, void *data) {
+    while(list) {
+        if(list->data==data) return list;
+        list=list->next;
+    }
+    return NULL;
 }
 
 void dllist_free(struct dllist *list,void (*freefunction)(void *data)) {

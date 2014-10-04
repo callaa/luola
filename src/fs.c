@@ -1,6 +1,6 @@
 /*
- * Luola - 2D multiplayer cavern-flying game
- * Copyright (C) 2003-2005 Calle Laakkonen
+ * Luola - 2D multiplayer cave-flying game
+ * Copyright (C) 2003-2006 Calle Laakkonen
  *
  * File        : fs.c
  * Description : File system calls and filepath abstraction
@@ -31,10 +31,6 @@
 
 #include "SDL.h"
 #include "SDL_image.h"
-
-#ifdef HAVE_CONFIG_H
-#include "../config.h"
-#endif
 
 #include "console.h"
 #include "fs.h"
@@ -287,18 +283,27 @@ SDL_Surface *load_image_rw (SDL_RWops * rw, int allownull,
     return conv;
 }
 
-/* This function loads an list of images from a Luola Datafile */
+/* Load an array of images with sequential index numbers from an LDAT file */
+/* count is set to the number of images read. */
 SDL_Surface **load_image_array (LDAT * datafile, int allownull,
                                 Transparency transparency, const char *id,
-                                int first, int last)
+                                int *count)
 {
     SDL_Surface **surfaces;
     SDL_RWops *data;
-    int pos = 0;
-    surfaces = malloc (sizeof (SDL_Surface *) * (last - first + 1));
-    for (pos = 0; pos <= last - first; pos++) {
-        data = ldat_get_item (datafile, id, pos);
-        surfaces[pos] = load_image_rw (data, allownull, transparency);
+    int r;
+    *count = ldat_get_item_count(datafile, id);
+    if(*count==0) {
+        if(allownull==0) {
+            fprintf (stderr,"No %s images in LDAT file\n",id);
+            exit(1);
+        }
+        return NULL;
+    }
+    surfaces = malloc (sizeof (SDL_Surface *) * (*count));
+    for (r=0;r<*count;r++) {
+        data = ldat_get_item (datafile, id, r);
+        surfaces[r] = load_image_rw (data, allownull, transparency);
     }
     return surfaces;
 }

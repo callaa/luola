@@ -1,6 +1,6 @@
 /*
- * Luola - 2D multiplayer cavern-flying game
- * Copyright (C) 2001-2005 Calle Laakkonen
+ * Luola - 2D multiplayer cave-flying game
+ * Copyright (C) 2001-2006 Calle Laakkonen
  *
  * File        : audio.h
  * Description : This module handles all audio playback
@@ -21,11 +21,11 @@
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  */
 
-#ifndef L_AUDIO_H
-#define L_AUDIO_H
+#ifndef AUDIO_H
+#define AUDIO_H
 
 /* Samples */
-typedef enum { WAV_BLIP, WAV_BLIP2, WAV_NORMALWEAP,
+typedef enum { WAV_NONE=-1, WAV_BLIP=0, WAV_BLIP2, WAV_NORMALWEAP,
     WAV_SPECIALWEAP, WAV_EXPLOSION, WAV_EXPLOSION2,
     WAV_CRASH,
     WAV_LASER, WAV_JUMP, WAV_MISSILE,
@@ -34,7 +34,7 @@ typedef enum { WAV_BLIP, WAV_BLIP2, WAV_NORMALWEAP,
     WAV_CRITTER1, WAV_CRITTER2, WAV_STEAM
 } AudioSample;
 
-#define SAMPLE_COUNT 18
+#define SAMPLE_COUNT 18 /* WAV_NONE is not counted */
 #define HEARINGRANGE 350.0
 
 /* Initialization */

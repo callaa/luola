@@ -66,20 +66,19 @@ void init_startup_options (void) {
     config = read_config_file(getfullpath (HOME_DIRECTORY, "startup.cfg"),1);
     if(config) {
         struct ConfigBlock *block = config->data;
-        CfgPtrType types[9];
-        void *pointers[9];
-        char *keys[9];
-
-        keys[0] = "fullscreen"; types[0]=CFG_INT; pointers[0]=&luola_options.fullscreen;
-        keys[1] = "hidemouse";  types[1]=CFG_INT; pointers[1]=&luola_options.hidemouse;
-        keys[2] = "joystick";   types[2]=CFG_INT; pointers[2]=&luola_options.joystick;
-        keys[3] = "sounds";     types[3]=CFG_INT; pointers[3]=&luola_options.sounds;
-        keys[4] = "audiorate";  types[4]=CFG_INT; pointers[4]=&luola_options.audio_rate;
-        keys[5] = "audiochunks";types[5]=CFG_INT; pointers[5]=&luola_options.audio_chunks;
-        keys[6] = "sfont";      types[6]=CFG_INT; pointers[6]=&luola_options.sfont;
-        keys[7] = "mbg_anim";   types[7]=CFG_INT; pointers[7]=&luola_options.mbg_anim;
-        keys[8] = "videomode";  types[8]=CFG_INT; pointers[8]=&luola_options.videomode;
-        translate_config(block->values,sizeof(types)/sizeof(CfgPtrType),keys,types,pointers,0);
+        struct Translate tr[] = {
+            {"fullscreen", CFG_INT, &luola_options.fullscreen},
+            {"hidemouse", CFG_INT, &luola_options.hidemouse},
+            {"joystick", CFG_INT, &luola_options.joystick},
+            {"sounds", CFG_INT, &luola_options.sounds},
+            {"audiorate", CFG_INT, &luola_options.audio_rate},
+            {"audiochunks", CFG_INT, &luola_options.audio_chunks},
+            {"sfont", CFG_INT, &luola_options.sfont},
+            {"mbg_anim", CFG_INT, &luola_options.mbg_anim},
+            {"videomode", CFG_INT, &luola_options.videomode},
+            {0,0,0}
+        };
+        translate_config(block->values,tr,0);
 
         dllist_free(config,free_config_file);
     }

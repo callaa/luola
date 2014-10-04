@@ -1,6 +1,6 @@
 /*
- * Luola - 2D multiplayer cavern-flying game
- * Copyright (C) 2004-2005 Calle Laakkonen
+ * Luola - 2D multiplayer cave-flying game
+ * Copyright (C) 2004-2006 Calle Laakkonen
  *
  * File        : list.h
  * Description : Linked list functions
@@ -30,12 +30,12 @@ struct dllist {
     struct dllist *next, *prev;
 };
 
-/* Append a new entry to a doubly linked    */
-/* list	Returns a pointer to the new entry. */
+/* Append a new entry to a doubly linked     */
+/* list. Returns a pointer to the new entry. */
 extern struct dllist *dllist_append(struct dllist *list, void *data);
 
-/* Insert a new entry to the beginning of a doubly */
-/* linked list Returns a pointer to the new entry. */
+/* Insert a new entry to the beginning of a doubly  */
+/* linked list. Returns a pointer to the new entry. */
 extern struct dllist *dllist_prepend(struct dllist *list, void *data);
 
 /* Remove an entry from a doubly linked list. If data is the */
@@ -46,8 +46,11 @@ extern struct dllist *dllist_remove(struct dllist *elem);
 /* Returns the number of items in a list */
 extern int dllist_count(struct dllist *list);
 
+/* Find an item from a list */
+extern struct dllist *dllist_find(struct dllist *list, void *data);
+
 /* Free a list. freefunction is used to free */
 /* the data. If NULL, data is not freed.     */
-extern void dllist_free(struct dllist *list,void (*freefunction)(void *data));
+extern void dllist_free(struct dllist *list,void (*freefunction)(void*));
 
 #endif

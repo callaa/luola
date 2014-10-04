@@ -1,6 +1,6 @@
 /*
- * Luola - 2D multiplayer cavern-flying game
- * Copyright (C) 2001-2005 Calle Laakkonen
+ * Luola - 2D multiplayer cave-flying game
+ * Copyright (C) 2001-2006 Calle Laakkonen
  *
  * File        : level.h
  * Description : Level handling and animation
@@ -21,35 +21,42 @@
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  */
 
-#ifndef L_LEVEL_H
-#define L_LEVEL_H
+#ifndef LEVEL_H
+#define LEVEL_H
 
 #include "SDL.h"
 
 #include "defines.h"
 #include "game.h"
-#include "vector.h"
+#include "physics.h"
 
-/* Luola palette */
+/* Free terrain */
 #define TER_FREE        0
-#define TER_GROUND      1
-#define TER_UNDERWATER  2
-#define TER_INDESTRUCT  3
-#define TER_WATER       4
+#define TER_TUNNEL      1
+
+/* Semi solid terrain */
+#define TER_WALKWAY     2
+
+/* Solid terrain */
+#define TER_GROUND      3
+#define TER_INDESTRUCT  4
 #define TER_BASE        5
-#define TER_EXPLOSIVE   6
-#define TER_EXPLOSIVE2  7
-#define TER_WATERFU     8
-#define TER_WATERFR     9
-#define TER_WATERFD     10
-#define TER_WATERFL     11
-#define TER_COMBUSTABLE 12
-#define TER_COMBUSTABL2 13
-#define TER_SNOW        14
-#define TER_ICE         15
-#define TER_BASEMAT     16
-#define TER_TUNNEL      17
-#define TER_WALKWAY     18
+#define TER_BASEMAT     6
+#define TER_SNOW        7
+#define TER_ICE         8
+#define TER_EXPLOSIVE   9
+#define TER_EXPLOSIVE2  10
+#define TER_COMBUSTABLE 11
+#define TER_COMBUSTABL2 12
+#define TER_UNDERWATER  13
+
+/* Water */
+#define TER_WATER       14
+#define TER_WATERFU     15
+#define TER_WATERFR     16
+#define TER_WATERFD     17
+#define TER_WATERFL     18
+
 #define LAST_TER        18
 
 /* Fire animation */
@@ -80,15 +87,14 @@ typedef struct {
 } Level;
 
 /* Globals */
-extern SDL_Rect cam_rects[4];   /* Camera rectangles for players */
-extern SDL_Rect lev_rects[4];   /* Where to draw playre screens (use only x+y) */
+extern SDL_Rect cam_rects[4];        /* Camera rectangles for players */
+extern SDL_Rect viewport_rects[4];   /* Where to draw playre screens. Use only x and y */
 extern Uint32 burncolor[FIRE_FRAMES];
 extern Uint32 lev_watercolrgb[3];
 extern Uint32 lev_watercol;
 extern Uint32 lev_basecol;
 
 extern Level lev_level;
-extern Vector gravity;
 
 /* Initialization and loading */
 extern void init_level (void);
@@ -96,48 +102,88 @@ extern void reinit_stars (void);
 extern void load_level (struct LevelFile *lev);
 extern void unload_level (void);
 
-extern int is_walkable (int x, int y);
-extern int is_water (int x, int y);
 extern int find_rainy (int x);
 
-/* A pixel perfect collision detection */
+/* Pixel perfect collision detection */
 extern int hit_solid_line (int startx, int starty, int endx, int endy,
                             int *newx, int *newy);
 
-/* Inlines */
-static inline int hit_solid (int x, int y)
-{
-    if (x < 0)
-        x = 0;
-    else if (x >= lev_level.width)
-        return TER_INDESTRUCT;
-    if (y < 0)
-        x = 0;
-    else if (y >= lev_level.height)
-        return TER_INDESTRUCT;
-    if (lev_level.solid[x][y] == TER_TUNNEL)
-        return 0;
-    if (lev_level.solid[x][y] == TER_FREE)
-        return 0;
-    if (lev_level.solid[x][y] == TER_WATER)
-        return -1;
-    if (lev_level.solid[x][y] >= TER_WATERFU
-        && lev_level.solid[x][y] <= TER_WATERFL)
-        return -2 - (lev_level.solid[x][y] - TER_WATERFU);
-    return lev_level.solid[x][y];
+/* Terrain type checks */
+static inline int ter_free(int terrain) {
+    return terrain==TER_FREE || terrain==TER_TUNNEL;
 }
 
-static inline void level_bounds(double *x,double *y) {
-    if(Round(*x)<0) *x=0;
-    else if(Round(*x)>=lev_level.width) *x=lev_level.width-1;
-    if(Round(*y)<0) *y=0;
-    else if(Round(*y)>=lev_level.height) *y=lev_level.height-1;
+static inline int is_free(int x,int y) {
+    if (x < 0 || x>=lev_level.width || y<0 || y>=lev_level.height)
+        return 0;
+    return ter_free(lev_level.solid[x][y]);
+}
+
+static inline int is_breathable(int x,int y) {
+    if (x < 0 || x>=lev_level.width || y<0 || y>=lev_level.height)
+        return 0;
+    return lev_level.solid[x][y]<=TER_WALKWAY;
+}
+
+static inline int ter_semisolid(int terrain) {
+    return terrain==TER_WALKWAY;
+}
+
+static inline int ter_solid(int terrain) {
+    return terrain>=TER_WALKWAY && terrain<=TER_UNDERWATER;
+}
+
+static inline int is_solid(int x,int y) {
+    if (x < 0 || x>=lev_level.width || y<0 || y>=lev_level.height)
+        return 1;
+    return ter_solid(lev_level.solid[x][y]);
+}
+
+static inline int ter_walkable(int terrain) {
+    return terrain>=TER_GROUND && terrain<=TER_UNDERWATER;
+}
+
+static inline int is_walkable(int x,int y) {
+    if (x < 0 || x>=lev_level.width || y<0 || y>=lev_level.height)
+        return 1;
+    return ter_walkable(lev_level.solid[x][y]);
+}
+
+
+static inline int is_explosive(int x,int y) {
+    return lev_level.solid[x][y] == TER_EXPLOSIVE || lev_level.solid[x][y]==TER_EXPLOSIVE2;
+}
+
+static inline int is_burnable(int x,int y) {
+    if (x < 0 || x>=lev_level.width || y<0 || y>=lev_level.height)
+        return 0;
+    return lev_level.solid[x][y] >= TER_EXPLOSIVE && lev_level.solid[x][y]<=TER_COMBUSTABL2;
+}
+
+static inline int ter_indestructable(int terrain) {
+    return terrain==TER_INDESTRUCT || (level_settings.indstr_base &&
+         (terrain==TER_BASE || terrain==TER_BASEMAT));
+}
+
+static inline int is_indestructable(int x,int y) {
+    if (x < 0 || x>=lev_level.width || y<0 || y>=lev_level.height)
+        return 1;
+    return ter_indestructable(lev_level.solid[x][y]);
+}
+
+static inline int is_water(int x,int y) {
+    if (x < 0 || x>=lev_level.width || y<0 || y>=lev_level.height)
+        return 0;
+    return lev_level.solid[x][y]>=TER_WATER &&
+        lev_level.solid[x][y]<=TER_WATERFL;
 }
 
 /* Level effects */
 extern void start_burning (int x, int y);
 extern void start_melting (int x, int y, unsigned int recurse);
 extern void alter_level (int x, int y, int recurse, LevelFXType type);
+extern void make_hole(int x,int y);
+extern void burn_hole(int x,int y);
 extern void animate_level (void);
 
 #endif

@@ -1,6 +1,6 @@
 /*
- * Luola - 2D multiplayer cavern-flying game
- * Copyright (C) 2001-2005 Calle Laakkonen
+ * Luola - 2D multiplayer cave-flying game
+ * Copyright (C) 2001-2006 Calle Laakkonen
  *
  * File        : player.h
  * Description : Player information and animation
@@ -39,35 +39,65 @@ typedef struct {
 
 typedef struct {
     struct Ship *ship;
-    Pilot pilot;
+    struct Pilot pilot;
     GameController controller;
     enum {INACTIVE=0,ALIVE,DEAD,BURIED} state;
     int recall_cooloff;
     int weapon_select;
     /* So the game remembers which weapons the player selected */
-    WeaponType specialWeapon;
-    SWeaponType standardWeapon;
+    int standardWeapon;
+    int specialWeapon;
 } Player;
 
-/* Initialization */
+/* Load player related datafiles */
 extern void init_players (LDAT *misc);
+
+/* Reset players for a new game */
+extern void reset_players (void);
+
+/* Prepare players for a new round */
 extern void reinit_players (void);
 
-/* Animation */
+/* Draw statusbar */
 extern void draw_player_hud (void);
+
+/* Draw radars */
 extern void draw_radar (SDL_Rect rect, int plr);
+
+/* Animation */
 extern void animate_players ();
 
-/* Handling */
+/* Return the player (in ship or a pilot) nearest to the coordinates */
 extern int hearme (int x, int y);
+
+/* Find the player to whom ship belongs */
 extern int find_player (struct Ship * ship);
-extern void buryplayer (int plr);
+
+/* Mark player as killed. Screen will fade out and player will be marked
+ * as buried */
+extern void kill_player (int plr);
+
+/* Eject pilot from the ship */
 extern void eject_pilot (int plr);
+
+/* Display a message on player viewport */
 extern void set_player_message (int plr, FontSize size,
                                 SDL_Color color, int dur, const char *msg, ...);
-extern void player_cleanup (void);
+
+/* Teleport a ship to its pilot */
 extern void recall_ship (int plr);
+
+/* Get the number of active players in the game */
 extern int active_players(void);
+
+/* Which team does a player belong to */
+extern int get_team(int plr);
+
+/* Set which team a player belongs to */
+extern void set_team(int plr, int team);
+
+/* Check if two players are on the same team */
+extern int same_team(int plr1, int plr2);
 
 /* Input */
 extern void player_keyhandler (SDL_KeyboardEvent * event, Uint8 type);
@@ -76,7 +106,6 @@ extern void player_joyaxishandler (SDL_JoyAxisEvent * axis);
 
 /* Globals */
 extern Player players[4];
-extern int player_teams[4];
 extern int radars_visible;
 extern int plr_teams_left;
 extern SDL_Surface *plr_messages[4];

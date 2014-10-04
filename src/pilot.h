@@ -1,6 +1,6 @@
 /*
- * Luola - 2D multiplayer cavern-flying game
- * Copyright (C) 2003-2005 Calle Laakkonen
+ * Luola - 2D multiplayer cave-flying game
+ * Copyright (C) 2003-2006 Calle Laakkonen
  *
  * File        : pilot.h
  * Description : Pilot code
@@ -21,55 +21,67 @@
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  */
 
-#ifndef L_PILOT_H
-#define L_PILOT_H
+#ifndef PILOT_H
+#define PILOT_H
 
 #include "SDL.h"
 
+#include "walker.h"
 #include "game.h"
+#include "spring.h"
 
 struct Ship;
 
-typedef struct {
+#define PARACHUTE_FRAME 2
+
+struct Pilot {
+    struct Walker walker;       /* inherits Walker */
     SDL_Surface *sprite[3];     /* Normal,Normal2, Parachute */
-    Vector vector;
-    Vector attack_vector;
-    Uint32 crosshair_color;
-    enum {NOROPE,ROPE_EXTENDING,USEROPE} rope;
-    int rope_len;
-    int rope_x, rope_y;
-    signed char rope_dir;
-    struct Ship *rope_ship;
-    double rope_th;             /* Angle of rope */
-    double rope_v;              /* Angular velocity of rope */
-    double x,y;
-    Sint8 hx, hy;               /* Hotspots */
-    float maxspeed;
-    char jumping;
-    signed char walking;
-    signed char updown;
-    unsigned char lock;
-    unsigned char parachuting;
-    unsigned char weap_cooloff;
-    unsigned char lock_btn2;
-    char onbase;
-    int toofast;              /* How long has the pilot been falling too fast */
+    Vector attack_vector;       /* Direction where gun is pointed to */
+    Uint32 crosshair_color;     /* Crosshair color */
+    int lock;                   /* Reserve controls for aiming */
+    int parachuting;            /* When nonzero, parachute is deployed */
+    int weap_cooloff;           /* Weapon cooloff counter */
+    int toofast;                /* How long has the pilot been falling too fast */
+    struct Spring *rope;        /* The ninjarope */
+    int ropectrl;               /* -1 retracts rope, 1 extends it */
 } Pilot;
 
-/* Globals */
-extern char pilot_any_ejected;
+/* Rope length limits. Actual rope length is nodelen*nodecount */
+static const double pilot_rope_minlen = 0.1;
+static const double pilot_rope_maxlen = 10.0;
 
-/* Initialization */
+/* List of active pilots */
+extern struct dllist *pilot_list;
+
+/* Load datafiles */
 extern void init_pilots (LDAT *playerfile);
-extern void init_pilot (Pilot *pilot,int playernum);
 
-/* Animation */
+/* Initialize pilots */
+extern void reinit_pilots (void);
+
+/* Eject a pilot (add it to the level) */
+void eject_pilot(int plr);
+
+/* Remove a pilot from the level */
+void remove_pilot(struct Pilot *pilot);
+
+/* Kill a pilot */
+void kill_pilot(struct Pilot *pilot);
+
+/* Animate all ejected pilots */
 extern void animate_pilots (void);
+
+/* Draw all ejected pilots */
 extern void draw_pilots (void);
+
 /* Handling */
-extern int hit_pilot (int x, int y,int team);
 extern void control_pilot (int plr);
-extern int find_nearest_pilot(int myX,int myY,int not_this, double *dist);
-extern void pilot_detach_rope(Pilot *pilot);
+
+/* Find the nearest pilot */
+extern int find_nearest_pilot(float x,float y,int myplr, double *dist);
+
+/* Detach rope */
+extern void pilot_detach_rope(struct Pilot *pilot);
 
 #endif

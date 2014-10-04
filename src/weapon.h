@@ -1,9 +1,9 @@
 /*
- * Luola - 2D multiplayer cavern-flying game
- * Copyright (C) 2003-2005 Calle Laakkonen
+ * Luola - 2D multiplayer cave-flying game
+ * Copyright (C) 2006 Calle Laakkonen
  *
  * File        : weapon.h
- * Description : Weapon code
+ * Description : Weapon firing code
  * Author(s)   : Calle Laakkonen
  *
  * Luola is free software; you can redistribute it and/or modify
@@ -21,78 +21,52 @@
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  */
 
-#ifndef L_WEAPON_H
-#define L_WEAPON_H
+#ifndef WEAPON_H
+#define WEAPON_H
 
-#include "SDL.h"
-#include "vector.h"
-#include "game.h"
-#include "weapon.h"
-#include "list.h"
+#include "bullet.h"
+#include "audio.h"
 
-typedef enum { Noproj, Decor, FireStarter, Handgun, Napalm, Cannon, Grenade,
-        MegaBomb,
-    Missile, MagMine, Mine, Claybomb, Plastique,
-    Snowball, Landmine, Spear, GravityWell,
-    Zap, Rocket, Energy, Boomerang,
-    DividingMine, Tag, Mush, Waterjet,
-    Ember, Acid, Mirv, MagWave
-} ProjectileType;
+struct NormalWeapon {
+    const char *name;
+    int cooloff;
 
-typedef enum { WCannon, WGrenade, WMegaBomb, WShotgun,
-    WMissile, WCloak, WMagMine,
-    WMine, WShield, WGhostShip,
-    WAfterBurner, WWarp,
-    WClaybomb, WPlastique, WSnowball,
-    WDart, WLandmine, WRepair,
-    WInfantry, WHelicopter, WSpeargun,
-    WGravGun, WGravMine, WZapper,
-    WRocket, WEnergy, WBoomerang,
-    WRemote, WDivide, WTag, WMush,
-    WWatergun, WEmber, WAcid, WMirv,
-    WFlame, WEMP, WAntigrav
-} WeaponType;
+    void (*fire)(struct Ship *ship);
+};
 
-#define WeaponCount 38
+struct SpecialWeapon {
+    int id;             /* Some weapons need extra identification */
+    const char *name;   /* Name of the weapon that is shown to user */
+    float energy;       /* How much energy does a single shot consume */
+    int cooloff;        /* Required cooloff time between shots */
+    int not_waterproof; /* Does the weapon not function underwater */
+    int singleshot;     /* Disable autofire */
+    AudioSample sfx;    /* Sound effect played when weapon is fired */
 
-/* Define types for the standard weapons  */
-typedef enum { SShot, S3ShotWide, S3ShotTight, SSweep, S4Way } SWeaponType;
-#define SWeaponCount 5
+    /* Create a bullet. Simple weapons that are fired from the nose of */
+    /* the ship with normal velocity (+ship velocity) use this */
+    struct Projectile *(*make_bullet)(double x, double y, Vector v);
 
-struct Ship;
+    /* More complex weapons use this */
+    void (*fire)(struct Ship *ship, double x, double y, Vector v);
+};
 
-typedef struct {
-    double x,y;
-    Vector vector;
-    Vector *gravity;
-    float angle;
-    double maxspeed;
-    Uint32 color;
-    ProjectileType type;
-    char wind_affects;
-    unsigned char primed;
-    int ownerteam;
-    struct Ship *owner;
-    int life;
-    Uint32 var1;
-} Projectile;
+/* Special weapon identification */
+/* These weapons have special code elsewhere */
+#define WEAP_AUTOREPAIR 1
 
-/* Initialization */
-extern void init_weapons (LDAT *explosionfile);
-extern void clear_weapons (void);
+/* Get the number of weapons available */
+extern int normal_weapon_count(void);
+extern int special_weapon_count(void);
 
-/* Handling */
-extern Projectile *make_projectile (double x, double y, Vector v);
-extern void add_projectile (Projectile * proj);
-extern void spawn_clusters (int x, int y, int count, ProjectileType type);
-extern void add_explosion (int x, int y, ProjectileType cluster);
-extern int detonate_remote (struct Ship *plr);
-extern const char *weap2str (int weapon);
-extern const char *sweap2str (int weapon);
+/* Primary weapons */
+extern const struct NormalWeapon normal_weapon[];
 
-/* Animation */
-extern void animate_weapons (void);
-extern void draw_weapons (void);
+/* Special weapons */
+extern const struct SpecialWeapon special_weapon[];
+
+extern Vector get_bullet_offset(double angle);
+extern Vector get_muzzle_vel(double angle);
 
 #endif
 

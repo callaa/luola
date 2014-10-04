@@ -1,6 +1,6 @@
 /*
- * Luola - 2D multiplayer cavern-flying game
- * Copyright (C) 2004-2005 Calle Laakkonen
+ * Luola - 2D multiplayer cave-flying game
+ * Copyright (C) 2004-2006 Calle Laakkonen
  *
  * File        : parser.h
  * Description : Generic configuration file parser
@@ -27,16 +27,20 @@
 #include "list.h"
 
 struct ConfigBlock {
-	char *title;
-	struct dllist *values;
+    char *title;
+    struct dllist *values;
 };
 
 struct KeyValue {
-	char *key;
-	char *value;
+    char *key;
+    char *value;
 };
 
-typedef enum {CFG_INT,CFG_FLOAT,CFG_DOUBLE,CFG_STRING,CFG_MULTISTRING} CfgPtrType;
+struct Translate {
+    char *key;
+    enum {CFG_INT,CFG_FLOAT,CFG_DOUBLE,CFG_STRING,CFG_MULTISTRING} type;
+    void *ptr;
+};
 
 /* Read a configuration file. Returns a list of ConfigBlocks */
 extern struct dllist *read_config_file(const char *filename,int quiet);
@@ -46,7 +50,7 @@ extern struct dllist *read_config_file(const char *filename,int quiet);
 extern struct dllist *read_config_rw(SDL_RWops *rw,size_t len,int quiet);
 
 /* Extract data from a ConfigBlock */
-extern void translate_config(struct dllist *values,int count,char **keys,CfgPtrType *types,void **pointers,int quiet);
+extern void translate_config(struct dllist *values,const struct Translate tr[],int quiet);
 
 /* Free a config block. Pass to dllist_free() */
 extern void free_config_file(void *data);

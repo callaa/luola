@@ -1,6 +1,6 @@
 /*
- * Luola - 2D multiplayer cavern-flying game
- * Copyright (C) 2003-2005 Calle Laakkonen
+ * Luola - 2D multiplayer cave-flying game
+ * Copyright (C) 2003-2006 Calle Laakkonen
  *
  * File        : font.c
  * Description : Font library abstraction
@@ -94,21 +94,20 @@ static inline void set_proper_font (FontInfo * fi, FontSize size)
 static int load_font_cfg (const char *filename) {
     struct dllist *fontcfg;
     struct ConfigBlock *block;
-    CfgPtrType types[4];
-    void *pointers[4];
-    char *keys[4];
+    struct Translate tr[] = {
+        {"bigfont", CFG_STRING, &TruetypeFonts.bigfont},
+        {"smallfont", CFG_STRING, &TruetypeFonts.smallfont},
+        {"smallsize", CFG_INT, &TruetypeFonts.smallsize},
+        {"bigsize", CFG_INT, &TruetypeFonts.bigsize},
+        {0,0,0}
+    };
 
     fontcfg = read_config_file(filename,1);
     if(!fontcfg) return 1;
 
     block=fontcfg->data;
-    
-    keys[0]="bigfont";      types[0]=CFG_STRING;    pointers[0]=&TruetypeFonts.bigfont;
-    keys[1]="smallfont";    types[1]=CFG_STRING;    pointers[1]=&TruetypeFonts.smallfont;
-    keys[2]="smallsize";    types[2]=CFG_INT;       pointers[2]=&TruetypeFonts.smallsize;
-    keys[3]="bigsize";      types[3]=CFG_INT;       pointers[3]=&TruetypeFonts.bigsize;
 
-    translate_config(block->values,4,keys,types,pointers,0);
+    translate_config(block->values,tr,0);
 
     dllist_free(fontcfg,free_config_file);
     

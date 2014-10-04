@@ -1,6 +1,6 @@
 /*
- * Luola - 2D multiplayer cavern-flying game
- * Copyright (C) 2003-2005 Calle Laakkonen
+ * Luola - 2D multiplayer cave-flying game
+ * Copyright (C) 2003-2006 Calle Laakkonen
  *
  * File        : fs.h
  * Description : File system calls and filepath abstraction
@@ -29,6 +29,8 @@
 
 #include "ldat.h"
 
+/* TODO number of directories should be reduced to DATA_DIRECTORY,
+ * USERLEVEL_DIRECTORY and HOME_DIRECTORY */
 /* Directories */
 typedef enum {DATA_DIRECTORY,FONT_DIRECTORY,LEVEL_DIRECTORY,
     USERLEVEL_DIRECTORY,HOME_DIRECTORY} DataDir;
@@ -57,17 +59,18 @@ extern SDL_Surface *load_image (const char *filename, int allownull,
 extern SDL_Surface *load_image_rw (SDL_RWops * rw, int allownull,
                                    Transparency transparency);
 
-/* This function loads an list of images from a Luola Datafile */
+/* Load an array of images with sequential index numbers from an LDAT file. */
+/* count is set to the number of images read. */
 extern SDL_Surface **load_image_array (LDAT * datafile, int allownull,
                                        Transparency transparency,
-                                       const char *id, int first, int last);
+                                       const char *id, int *count);
 
 /* This is a convenience function to load an image from a datafile */
 extern SDL_Surface *load_image_ldat (LDAT * datafile, int allownull,
                                      Transparency transparency,
                                      const char *id, int index);
 
-/* Take a screenshot and save it in the home folder*/
+/* Take a screenshot and save it in the home folder */
 extern void screenshot (void);
 
 #endif

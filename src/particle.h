@@ -1,6 +1,6 @@
 /*
- * Luola - 2D multiplayer cavern-flying game
- * Copyright (C) 2001-2005 Calle Laakkonen
+ * Luola - 2D multiplayer cave-flying game
+ * Copyright (C) 2001-2006 Calle Laakkonen
  *
  * File        : particle.h
  * Description : Particle engine
@@ -21,28 +21,28 @@
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  */
 
-#ifndef L_PARTICLE_H
-#define L_PARTICLE_H
+#ifndef PARTICLE_H
+#define PARTICLE_H
 
-#include "vector.h"
+#include "physics.h"
 
-typedef struct {
+struct Particle {
     Vector vector;
-    int x, y;
+    float x, y;
     int age;
     int rd, gd, bd, ad;
     unsigned char color[4];
-} Particle;
+};
 
-/* Initialization */
+/* Delete all particles */
 extern void clear_particles (void);
 
-/* Handling */
-extern Particle *make_particle (int x, int y, int age);
+/* Create a new particle and add it to the list */
+extern struct Particle *make_particle (float x, float y, int age);
 
-/* Animation */
+/* Animate and draw particles */
 extern void animate_particles (void);
 
-extern void calc_color_deltas (Particle * part,Uint8 r,Uint8 g,Uint8 b,Uint8 a);
+extern void calc_color_deltas (struct Particle * part,Uint8 r,Uint8 g,Uint8 b,Uint8 a);
 
 #endif
