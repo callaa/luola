@@ -21,651 +21,418 @@
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  */
 
-#include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
-#include <errno.h>
 
 #include "menu.h"
 #include "font.h"
+#include "console.h"
 
-/* Internally used functions */
-static void update_menu_cache_item (MenuCache * cache, Menu * menu, int index,
-                                    MenuItem * item);
-static void menu_cache_ascend (ToplevelMenu * menu);
-static void menu_cache_descend (ToplevelMenu * menu);
-static void menu_inherit_values (Menu * menu);
-
-/* Internally used datatypes */
-typedef struct _Menuitemlist {
-    MenuItem *item;
-    struct _Menuitemlist *next;
-} Menuitemlist;
-
-/* Creates the toplevel menu				*/
-ToplevelMenu *create_toplevel_menu (int menucount, Menu ** menus)
+/* Create and initialize a new menu */
+struct Menu *create_menu(int id,struct Menu *parent,
+        struct MenuDrawingOptions *options, char *text_enabled,
+        char *text_disabled,int escvalue)
 {
-    ToplevelMenu *tl;
-    int m, r, s;
-    if (menucount <= 0)
+    struct Menu *menu;
+
+    menu=malloc(sizeof(struct Menu));
+    if(!menu) {
+        perror("create_menu");
         return NULL;
-    /* First arrange the menus into a tree */
-    for (m = 0; m < menucount; m++)
-        for (r = 0; r < menus[m]->itemcount; r++)
-            if (menus[m]->items[r]->type == MNU_ITEM_SUBMENU)
-                for (s = 0; s < menucount; s++)
-                    if (menus[s]->ID == (Uint32) menus[m]->items[r]->value) {
-                        menus[m]->items[r]->submenu = menus[s];
-                        menus[m]->items[r]->value = NULL;
-                        if (menus[s]->parent)
-                            printf
-                                ("Warning ! Menu %d already has a parent!\n",
-                                 menus[s]->ID);
-                        menus[s]->parent = menus[m];
-                    }
-    /* Then check that all the menus are parented correctly */
-    /* We don't actually do anything else but alert the user (which should be */
-    /* the developer if this message appears...) */
-    if (menus[0]->parent != NULL)
-        printf ("Warning ! Toplevel menu %d has a parent!\n", menus[0]->ID);
-    for (m = 1; m < menucount; m++)
-        if (menus[m]->parent == NULL) {
-            printf
-                ("Warning ! Menu %d has no parent although it should have!\n",
-                 menus[m]->ID);
-            printf ("(this is a potential memory leak)\n");
-        }
-    /* The last round, inherit values */
-    menu_inherit_values (menus[0]);
-    /* Finally create the toplevel menu */
-    tl = malloc (sizeof (ToplevelMenu));
-    tl->menu = menus[0];
-    tl->current_menu = tl->menu;
-    tl->current_position = 0;
-    while (tl->menu->items[tl->current_position]->disabled)
-        tl->current_position++;
-
-    tl->cache = NULL;
-    menu_cache_descend (tl);
-    return tl;
-}
-
-/* Creates a menu. Use this function to create		*/
-/* all the menus you use. If your menu has submenus,	*/
-/* you have to use the create_toplevel_menu function	*/
-/* to actually make them work.				*/
-Menu *create_menu (unsigned int id, ...)
-{
-    Menu *newmenu;
-    Menuitemlist *items = NULL, *first = NULL;
-    MenuItem *item;
-    va_list ap;
-    unsigned int type;
-    int i;
-
-    /* Create the menu structure */
-    newmenu = malloc (sizeof (Menu));
-    newmenu->itemcount = 0;
-    newmenu->parent = NULL;
-    newmenu->ID = id;
-    newmenu->predraw = NULL;
-    newmenu->drawopts.spacing = -1;
-    newmenu->text_enabled = NULL;
-    newmenu->text_disabled = NULL;
-    /* Create menu items */
-    va_start (ap, id);
-    while (1) {
-        type = va_arg (ap, unsigned int);
-        if (type == 0x00)
-            break;
-        else if (type == MNU_PREDRAW_FUNC)
-            newmenu->predraw = va_arg (ap, void *);
-        else if (type == MNU_DRAWING_OPTIONS)
-            newmenu->drawopts = va_arg (ap, MenuDrawingOptions);
-        else if (type == MNU_TOGGLE_TEXTS) {
-            newmenu->text_enabled = va_arg (ap, char *);
-            newmenu->text_disabled = va_arg (ap, char *);
-        } else {                /* Menu item */
-            item = malloc (sizeof (MenuItem));
-            item->type = type;
-            if (items == NULL) {
-                items = malloc (sizeof (Menuitemlist));
-                items->next = NULL;
-                first = items;
-            } else {
-                items->next = malloc (sizeof (Menuitemlist));
-                items = items->next;
-                items->next = NULL;
-            }
-            items->item = item;
-            /* Set some defaults for this item */
-            memset (item, 0, sizeof (MenuItem));
-            item->inc.i = 1;
-            if (type == MNU_ITEM_SEP)
-                item->disabled = 1;
-            item->color = font_color_white;
-            item->align = MNU_ALIGN_LEFT;
-            /* Get the options for this item */
-            newmenu->itemcount++;
-            item->type = type;
-            /* Get the ID for this menu */
-            item->ID = va_arg (ap, unsigned int);
-            while ((type = va_arg (ap, unsigned int))) {        /* Item options */
-                switch (type) {
-                case MNU_OPT_LABEL:
-                    item->label.text = va_arg (ap, char *);
-                    item->label_type = 1;
-                    break;
-                case MNU_OPT_LABELF:
-                    item->label.function = va_arg (ap, void *);
-                    item->label_type = 2;
-                    break;
-                case MNU_OPT_VALUE_TYPE:
-                    item->value_type = va_arg (ap, unsigned int);
-                    break;
-                case MNU_OPT_VALUE:
-                    item->value = va_arg (ap, void *);
-                    break;
-                case MNU_OPT_MINVALUE:
-                    item->min.i = va_arg (ap, int);
-                    break;
-                case MNU_OPT_MAXVALUE:
-                    item->max.i = va_arg (ap, int);
-                    break;
-                case MNU_OPT_INCREMENT:
-                    item->inc.i = va_arg (ap, int);
-                    break;
-                case MNU_OPT_LOCK:
-                    item->lock = va_arg (ap, unsigned int *);
-                    break;
-                case MNU_OPT_ACTION:
-                    item->action = va_arg (ap, void *);
-                    break;
-                case MNU_OPT_RVAL:
-                    item->rval = va_arg (ap, unsigned int);
-                    break;
-                case MNU_OPT_COLOR:
-                    item->color = va_arg (ap, SDL_Color);
-                    break;
-                case MNU_OPT_ALIGN:
-                    item->align = va_arg (ap, unsigned int);
-                    break;
-                case MNU_OPT_DISABLED:
-                    item->disabled = va_arg (ap, unsigned int);
-                    break;
-                case MNU_OPT_TOGGLE_TEXTS:
-                    item->text_enabled = va_arg (ap, char *);
-                    item->text_disabled = va_arg (ap, char *);
-                    break;
-                case MNU_OPT_ICON:
-                case MNU_OPT_ICONF:
-                case MNU_OPT_FICON:{
-                        MenuIconList *newicon =
-                            malloc (sizeof (MenuIconList));
-                        newicon->type = type;
-                        newicon->alignment = va_arg (ap, unsigned int);
-                        newicon->icon.get_icon = va_arg (ap, void *);
-                        newicon->next = NULL;
-                        if (item->icon == NULL) {
-                            item->icon = newicon;
-                            item->last_icon = newicon;
-                        } else {
-                            item->last_icon->next = newicon;
-                            item->last_icon = newicon;
-                        }
-                    }
-                    break;
-                default:
-                    printf ("Warning ! Unidentified menu command 0x%x\n",
-                            type);
-                }
-            }
-        }
     }
-    va_end (ap);
-    /* Insert the menu items into the menu */
-    newmenu->items = malloc (sizeof (MenuItem *) * newmenu->itemcount);
-    if (!newmenu->items) {
-        printf ("Malloc error while creating menu %d\n", id);
-        perror ("malloc");
-        exit (1);
+
+    menu->ID = id;
+    menu->parent = parent;
+    menu->children = NULL;
+    menu->escvalue = escvalue;
+
+    if(!options) {
+        if(!parent) {
+            fprintf(stderr,"Error: create_menu(%d): no drawing options provided!\n",id);
+            free(menu);
+            return NULL;
+        }
+        options = &parent->options;
     }
-    items = first;
-    i = 0;
-    while (first) {
-        items = first->next;
-        newmenu->items[i] = first->item;
-        i++;
-        free (first);
-        first = items;
-    }
-    return newmenu;
-}
+    menu->options = *options;
+    menu->predraw = NULL;
 
-/* Create a basic MenuDrawingOptions structure.		*/
-/* You should edit it afterwards, changing values for	*/
-/* the left/right offsets and color			*/
-MenuDrawingOptions make_menu_drawingoptions (int x, int y, int x2, int y2)
-{
-    MenuDrawingOptions opt;
-    opt.area.x = x;
-    opt.area.y = y;
-    opt.area.w = x2 - x;
-    opt.area.h = y2 - y;
-    opt.spacing = 20;
-    opt.left_offset = 0;
-    opt.right_offset = 0;
-    opt.selection_color = 0;
-    return opt;
-}
-
-
-/* This function frees a toplevel menu, all its		*/
-/* submenus and caches properly. None of the data	*/
-/* contained in the items of menus are freed.		*/
-void free_toplevel_menu (ToplevelMenu * menu)
-{
-    free_menu (menu->menu);
-    while (menu->cache)
-        menu_cache_ascend (menu);
-    free (menu);
-}
-
-/* This function updates the cursor position and	*/
-/* executes commands according to the settings in the	*/
-/* selected item. Call this from the keyboard handler	*/
-/* or whatever your are using.				*/
-unsigned int menu_control (ToplevelMenu * menu, MenuCommand cmd)
-{
-    unsigned int rval = 0;
-    MenuItem *item = NULL;
-    switch (cmd) {
-    case MenuUp:               /* Move cursor up */
-        menu->current_position--;
-        if (menu->current_position < 0)
-            menu->current_position = menu->current_menu->itemcount - 1;
-        if (menu->current_menu->items[menu->current_position]->disabled)
-            menu_control (menu, MenuUp);
-        break;
-    case MenuDown:             /* Move cursor down */
-        menu->current_position++;
-        if (menu->current_position >= menu->current_menu->itemcount)
-            menu->current_position = 0;
-        if (menu->current_menu->items[menu->current_position]->disabled)
-            menu_control (menu, MenuDown);
-        break;
-    case MenuLeft:             /* Decrease value */
-        item = menu->current_menu->items[menu->current_position];
-        rval = item->rval;
-        if (item->type == MNU_ITEM_VALUE) {
-            if (item->value_type == MNU_TYP_CHAR) {
-                *(signed char *) item->value -= item->inc.c;
-                if (*(signed char *) item->value < item->min.c)
-                    *(signed char *) item->value = item->max.c;
-            } else if (item->value_type == MNU_TYP_INT) {
-                *(int *) item->value -= item->inc.i;
-                if (*(int *) item->value < item->min.i)
-                    *(int *) item->value = item->max.i;
-            } else if (item->value_type == MNU_TYP_FLOAT
-                       || item->value_type == MNU_TYP_DOUBLE) {
-                *(double *) item->value -= item->inc.d;
-                if (*(double *) item->value < item->min.d)
-                    *(double *) item->value = item->max.d;
-            }
-        } else if (item->type == MNU_ITEM_TOGGLE) {
-            menu_control (menu, MenuEnter);
+    menu->selection = 0;
+    if(!text_enabled) {
+        if(!parent) {
+            fprintf(stderr,"Error: create_menu(%d): no enabled text provided!\n",id);
+            free(menu);
+            return NULL;
         }
-        update_menu_cache_item (menu->cache, menu->current_menu,
-                                menu->current_position, item);
-        break;
-    case MenuRight:            /* Increase value */
-        item = menu->current_menu->items[menu->current_position];
-        rval = item->rval;
-        if (item->type == MNU_ITEM_VALUE) {
-            if (item->value_type == MNU_TYP_CHAR) {
-                *(unsigned char *) item->value += item->inc.c;
-                if (*(unsigned char *) item->value > item->max.c)
-                    *(signed char *) item->value = item->min.c;
-            } else if (item->value_type == MNU_TYP_INT) {
-                *(int *) item->value += item->inc.i;
-                if (*(int *) item->value > item->max.i)
-                    *(int *) item->value = item->min.i;
-            } else if (item->value_type == MNU_TYP_FLOAT
-                       || item->value_type == MNU_TYP_DOUBLE) {
-                *(double *) item->value += item->inc.d;
-                if (*(double *) item->value > item->min.d)
-                    *(double *) item->value = item->min.d;
-            }
-        } else if (item->type == MNU_ITEM_TOGGLE) {
-            menu_control (menu, MenuEnter);
-        }
-        update_menu_cache_item (menu->cache, menu->current_menu,
-                                menu->current_position, item);
-        break;
-    case MenuBack:             /* Return to previous menu */
-        if (menu->current_menu->parent) {
-            menu->current_menu = menu->current_menu->parent;
-            menu->current_position = 0;
-            if (menu->current_menu->items[0]->disabled)
-                menu_control (menu, MenuDown);
-            menu_cache_ascend (menu);
-        } else
-            return menu->current_menu->items[menu->current_position]->rval;
-        break;
-    case MenuESC:
-        if (menu->current_menu->parent)
-            menu_control (menu, MenuBack);
-        else
-            return menu->escvalue;
-    case MenuEnter:            /* Execute selection */
-        item = menu->current_menu->items[menu->current_position];
-        rval = item->rval;
-        if (item->type == MNU_ITEM_TOGGLE) {    /* Toggle value */
-            switch (item->value_type) {
-            case MNU_TYP_CHAR:
-                *(unsigned char *) item->value =
-                    !*(unsigned char *) item->value;
-                break;
-            default:
-                *(unsigned int *) item->value =
-                    !*(unsigned int *) item->value;
-                break;
-            }
-            update_menu_cache_item (menu->cache, menu->current_menu,
-                                    menu->current_position, item);
-        } else if (item->type == MNU_ITEM_SUBMENU) {    /* Enter a submenu */
-            menu->current_menu = item->submenu;
-            menu->current_position = 0;
-            if (menu->current_menu->items[0]->disabled)
-                menu_control (menu, MenuDown);
-            menu_cache_descend (menu);
-        } else if (item->type == MNU_ITEM_RETURN) {
-            menu_control (menu, MenuBack);
-        }
-        break;
-    case MenuToggleLock:       /* Toggle the lock variable */
-        item = menu->current_menu->items[menu->current_position];
-        if (item->lock) {
-            *item->lock = !*item->lock;
-        }
-        break;
-    }
-    // If the item has an action, execute it.
-    if (item)
-        if (item->action)
-            if (item->
-                action (cmd, menu->current_menu->ID,
-                        (struct _MenuItemStruct *) item))
-                update_menu_cache_item (menu->cache, menu->current_menu,
-                                        menu->current_position, item);
-    return rval;
-}
-
-/* This function updates the surface cache for the	*/
-/* current menu. You only need to call this yourself	*/
-/* when some of the values in the current menu or its	*/
-/* parents have been changed outside menu_control() .	*/
-void update_menu_cache (ToplevelMenu * menu)
-{
-    int i;
-    for (i = 0; i < menu->current_menu->itemcount; i++)
-        update_menu_cache_item (menu->cache, menu->current_menu, i,
-                                menu->current_menu->items[i]);
-}
-
-/* Draw the menu onto the surface 'surface'.		*/
-/* The menu is drawn into the area pointed by		*/
-/* menu_are rectangle. (Remember to set it !)		*/
-void draw_menu (SDL_Surface * surface, ToplevelMenu * menu)
-{
-    SDL_Rect targ, iconl, iconr;
-    SDL_Surface *icon;
-    MenuIconList *il;
-    MenuDrawingOptions *opts;
-    int i;
-    /* Call the predraw function */
-    if (menu->current_menu->predraw)
-        menu->current_menu->predraw (menu->current_menu->ID);
-    opts = &menu->current_menu->drawopts;
-    targ.x = opts->area.x;
-    targ.w = opts->area.w;
-    targ.h = opts->spacing;
-    targ.y = opts->area.y + menu->current_position * opts->spacing;
-    SDL_FillRect (surface, &targ, opts->selection_color);
-    for (i = 0; i < menu->current_menu->itemcount; i++) {
-        if (menu->cache->items[i] == NULL)
-            continue;
-        targ.h = opts->spacing;
-        targ.w = menu->cache->items[i]->w;
-        targ.y = opts->area.y + i * opts->spacing;
-        if (menu->cache->align[i] == MNU_ALIGN_LEFT)
-            targ.x = opts->area.x + opts->left_offset;
-        else if (menu->cache->align[i] == MNU_ALIGN_CENTER)
-            targ.x = opts->area.x + opts->area.w / 2 - targ.w / 2;
-        else
-            targ.x =
-                opts->area.x + opts->area.w - opts->right_offset - targ.w;
-        SDL_BlitSurface (menu->cache->items[i], NULL, surface, &targ);
-        if (menu->current_menu->items[i]->icon) {
-            il = menu->current_menu->items[i]->icon;
-            iconl.x = targ.x;
-            iconl.y = targ.y;
-            iconr.x = targ.x + targ.w + 2;
-            iconr.y = targ.y;
-            while (il) {
-                if (il->type == MNU_OPT_ICON) {
-                    icon = il->icon.surface;
-                    if (!icon) {
-                        il = il->next;
-                        continue;
-                    }
-                } else if (il->type == MNU_OPT_ICONF) {
-                    icon =
-                        il->icon.get_icon (menu->current_menu->ID,
-                                           (struct _MenuItemStruct *) menu->
-                                           current_menu->items[i]);
-                    if (!icon) {
-                        il = il->next;
-                        continue;
-                    }
-                } else {
-                    icon = NULL;
-                }
-                if (il->alignment == MNU_ALIGN_LEFT) {
-                    if (icon) {
-                        iconl.x -= icon->w + 2;
-                        SDL_BlitSurface (icon, NULL, surface, &iconl);
-                    } else
-                        iconl.x -=
-                            il->icon.draw_icon (iconl.x, iconl.y,
-                                                MNU_ALIGN_LEFT,
-                                                menu->current_menu->ID,
-                                                (struct _MenuItemStruct *)
-                                                menu->current_menu->
-                                                items[i]) + 2;
-                } else {
-                    if (icon) {
-                        SDL_BlitSurface (icon, NULL, surface, &iconr);
-                        iconr.x += icon->w + 2;
-                    } else
-                        iconr.x +=
-                            il->icon.draw_icon (iconr.x, iconr.y,
-                                                MNU_ALIGN_RIGHT,
-                                                menu->current_menu->ID,
-                                                (struct _MenuItemStruct *)
-                                                menu->current_menu->
-                                                items[i]) + 2;
-                }
-                il = il->next;
-            }
-        }
-    }
-}
-
-/* Free a menu and all its submenus */
-void free_menu (Menu * menu)
-{
-    int i;
-    MenuIconList *tmp;
-    for (i = 0; i < menu->itemcount; i++) {
-        if (menu->items[i]->type == MNU_ITEM_SUBMENU)
-            free_menu (menu->items[i]->submenu);
-        while (menu->items[i]->icon) {
-            tmp = menu->items[i]->icon->next;
-            free (menu->items[i]->icon);
-            menu->items[i]->icon = tmp;
-        }
-        free (menu->items[i]);
-    }
-    free (menu->items);
-    free (menu);
-}
-
-/* Internal. */
-/* Update a single item in the menu cache. */
-static void update_menu_cache_item (MenuCache * cache, Menu * menu, int index,
-                                    MenuItem * item)
-{
-    char value[10], *label = NULL;
-    value[0] = '\0';
-    /* First free the old surface */
-    if (cache->items[index])
-        SDL_FreeSurface (cache->items[index]);
-    /* Check if the item has a value and if so, construct the proper label */
-    if (item->label_type == 1) {
-        if (item->type == MNU_ITEM_TOGGLE
-            && (menu->text_enabled || item->text_enabled)
-            && item->text_enabled != (char *) 1) {
-            char *src;
-            if (*(char *) item->value) {
-                if (item->text_enabled)
-                    src = item->text_enabled;
-                else
-                    src = menu->text_enabled;
-            } else {
-                if (item->text_disabled)
-                    src = item->text_disabled;
-                else
-                    src = menu->text_disabled;
-            }
-            label = malloc (strlen (item->label.text) + strlen (src));
-            sprintf (label, item->label.text, src);
-            value[0] = '0';
-        } else {
-            if (item->value_type == MNU_TYP_CHAR) {
-                sprintf (value, "%d", *(char *) item->value);
-                label = malloc (strlen (item->label.text) + strlen (value));
-                sprintf (label, item->label.text, *(char *) item->value);
-            } else if (item->value_type == MNU_TYP_INT) {
-                sprintf (value, "%d", *(int *) item->value);
-                label = malloc (strlen (item->label.text) + strlen (value));
-                sprintf (label, item->label.text, *(char *) item->value);
-            } else if (item->value_type == MNU_TYP_DOUBLE
-                       || item->value_type == MNU_TYP_FLOAT) {
-                sprintf (value, "%.2f", *(double *) item->value);
-                label = malloc (strlen (item->label.text) + strlen (value));
-                sprintf (label, item->label.text, *(char *) item->value);
-            } else
-                label = item->label.text;
-        }
-    } else if (item->label_type == 2)
-        label =
-            item->label.function (menu->ID, (struct _MenuItemStruct *) item);
-    /* Draw the new menu item */
-    if (label) {
-        cache->items[index] = renderstring (Bigfont, label, item->color);
-        cache->align[index] = item->align;
+        menu->text_enabled = parent->text_enabled;
     } else {
-        cache->items[index] = NULL;
-        cache->align[index] = 0;
+        menu->text_enabled = text_enabled;
     }
-    if (item->label_type == 1 && value[0])
-        free (label);
+
+    if(!text_disabled) {
+        if(!parent) {
+            fprintf(stderr,"Error: create_menu(%d): no disabled text provided!\n",id);
+            free(menu);
+            return NULL;
+        }
+        menu->text_disabled = parent->text_disabled;
+    } else {
+        menu->text_disabled = text_disabled;
+    }
+
+    return menu;
 }
 
-/* Internal. */
-/* Return one level in the cache */
-static void menu_cache_ascend (ToplevelMenu * menu)
-{
-    int i;
-    MenuCache *prev;
-    prev = menu->cache;
-    menu->cache = prev->parent;
-    for (i = 0; i < prev->itemcount; i++)
-        SDL_FreeSurface (prev->items[i]);
-    free (prev->items);
-    free (prev->align);
-    free (prev);
-}
-
-/* Internal. */
-/* Create a new level in the cache */
-static void menu_cache_descend (ToplevelMenu * menu)
-{
-    MenuCache *newcache;
-    newcache = malloc (sizeof (MenuCache));
-    newcache->parent = menu->cache;
-    menu->cache = newcache;
-    newcache->itemcount = menu->current_menu->itemcount;
-    newcache->items = malloc (sizeof (SDL_Surface *) * newcache->itemcount);
-    memset (newcache->items, 0, sizeof (SDL_Surface *) * newcache->itemcount);
-    newcache->align = malloc (sizeof (unsigned int) * newcache->itemcount);
-    update_menu_cache (menu);
-}
-
-/* Internal. */
-/* Loop thru the menu tree and do inheritance */
-static void menu_inherit_values (Menu * menu)
-{
-    int i;
-    Menu *s;
-    for (i = 0; i < menu->itemcount; i++)
-        if (menu->items[i]->type == MNU_ITEM_SUBMENU) {
-            if (menu->items[i]->submenu == NULL) {
-                printf
-                    ("Warning ! A submenu item with no submenu detected ! (%d/%d)\n",
-                     menu->ID, menu->items[i]->ID);
-                printf ("Changing type to label...\n");
-                menu->items[i]->type = MNU_ITEM_LABEL;
-                continue;
+/* Redraw menu item text */
+static void item_update_cache(struct MenuItem *i) {
+    const char *format=NULL;
+    if(i->label.cache)
+        SDL_FreeSurface(i->label.cache);
+    switch(i->label.type) {
+        case MNU_TXT_STR: format = i->label.txt.text; break;
+        case MNU_TXT_FUNC: format = i->label.txt.function(i); break;
+    }
+    if(format) {
+        if(i->value.value && i->type!=MNU_ITEM_SUBMENU) {
+            char str[256];
+            if(i->type==MNU_ITEM_TOGGLE) {
+                if(*i->value.value)
+                    sprintf(str,format,i->text_enabled);
+                else
+                    sprintf(str,format,i->text_disabled);
+            } else {
+                sprintf(str,format,*i->value.value);
             }
-            s = menu->items[i]->submenu;
-            if (s->drawopts.spacing == -1)
-                s->drawopts = menu->drawopts;
-            if (!s->text_enabled)
-                s->text_enabled = menu->text_enabled;
-            if (!s->text_disabled)
-                s->text_disabled = menu->text_disabled;
-            menu_inherit_values (s);
+            i->label.cache = renderstring(Bigfont, str, i->label.color);
+        } else {
+            i->label.cache = renderstring(Bigfont, format, i->label.color);
         }
-}
-
-/* This function returns a pointer to a submenu	with 	*/
-/* the ID 'id'. The first occurence of a menu with that	*/
-/* ID will be returned.					*/
-Menu *find_menu (Menu * menu, int id)
-{
-    Menu *rm;
-    int i;
-    if (menu->ID == id)
-        return menu;
-    for (i = 0; i < menu->itemcount; i++) {
-        if (menu->items[i]->type == MNU_ITEM_SUBMENU) {
-            if ((rm = find_menu (menu->items[i]->submenu, id)))
-                return rm;
-        }
+    } else {
+        i->label.cache = NULL;
     }
-    return NULL;
 }
 
-/* This function returns the item with the ID 'id'	*/
-/* from the menu 'menu'. The first occurence of an	*/
-/* item with that ID will be returned.			*/
-MenuItem *find_item (Menu * menu, int id)
+/* Create a new menu item and add it to a menu */
+struct MenuItem *add_menu_item(struct Menu *menu,MenuItemType type, int id,
+        struct MenuText text, struct MenuValue value)
 {
-    int i;
-    for (i = 0; i < menu->itemcount; i++)
-        if (menu->items[i]->ID == id)
-            return menu->items[i];
-    return NULL;
+    struct MenuItem *item;
+    item = malloc(sizeof(struct MenuItem));
+    if(!item) {
+        perror("add_menu_item");
+        return NULL;
+    }
+    if(menu->children)
+        dllist_append(menu->children,item);
+    else
+        menu->children = dllist_append(menu->children,item);
+    item->parent = menu;
+    item->type = type;
+    item->ID = id;
+    item->sensitive = type!=MNU_ITEM_SEP;
+    item->label = text;
+    item->icons = NULL;
+    item->value = value;
+    item->text_enabled = menu->text_enabled;
+    item->text_disabled = menu->text_disabled;
+    item->action = NULL;
+    return item;
 }
+
+/* Free a menu item (called by dllist_free from free_menu) */
+static void free_menu_item(void *data) {
+    struct MenuItem *item=data;
+    if(item->label.cache)
+        SDL_FreeSurface(item->label.cache);
+    dllist_free(item->icons,free);
+    if(item->type == MNU_ITEM_SUBMENU)
+        free_menu((struct Menu*)item->value.value);
+    free(item);
+}
+
+/* Free a menu and its children */
+void free_menu(struct Menu *menu)
+{
+    if(menu) {
+        dllist_free(menu->children,free_menu_item);
+        free(menu);
+    }
+}
+
+/* Decrease menu item value */
+static void decrease_value(struct MenuItem *i) {
+    *i->value.value -= i->value.inc;
+    if(*i->value.value < i->value.min)
+        *i->value.value = i->value.max;
+}
+
+/*  Increase menu item value */
+static void increase_value(struct MenuItem *i) {
+    *i->value.value += i->value.inc;
+    if(*i->value.value > i->value.max)
+        *i->value.value = i->value.min;
+}
+
+/* Toggle menu item value */
+static void toggle_value(struct MenuItem *i) {
+    *i->value.value = !*i->value.value;
+}
+
+/* Recursively free all cached surfaces from this menu and all its submenus */
+void flush_menu(struct Menu *menu) {
+    struct dllist *child=menu->children;
+    while(child) {
+        struct MenuItem *i=child->data;
+        if(i->label.cache) {
+            SDL_FreeSurface(i->label.cache);
+            i->label.cache = NULL;
+        }
+        if(i->type == MNU_ITEM_SUBMENU)
+            flush_menu((struct Menu*)i->value.value);
+        child=child->next;
+    }
+}
+
+/* Check if menu item can be selected */
+static int is_sensitive(struct Menu *menu, int item) {
+    struct dllist *list=menu->children;
+    for(;item>0;item--)
+        list=list->next;
+    return ((struct MenuItem*)list->data)->sensitive;
+}
+
+/* Control a menu */
+int menu_control(struct Menu **menu, MenuCommand cmd) {
+    struct Menu *m=*menu;
+    struct dllist *sellist=m->children;
+    struct MenuItem *sel=NULL;
+    int r;
+    if(sellist) {
+        for(r=0;r<m->selection;r++) {
+            if(sellist->next) {
+                sellist=sellist->next;
+            } else {
+                fprintf(stderr,"Bug! menu_control(): menu item %d doesn't exist!\n",m->selection);
+                break;
+            }
+        }
+        sel = sellist->data;
+    }
+    switch(cmd) {
+        case MNU_UP: /* Move selection up */
+            if(m->selection==0)
+                m->selection=dllist_count(m->children)-1;
+            else
+                m->selection--;
+            if(!is_sensitive(m,m->selection))
+                menu_control(menu,cmd);
+            break;
+        case MNU_DOWN: /* Move selection down */
+            if(m->selection==dllist_count(m->children)-1)
+                m->selection=0;
+            else
+                m->selection++;
+            if(!is_sensitive(m,m->selection))
+                menu_control(menu,cmd);
+            break;
+        case MNU_LEFT: /* Decrease value */
+            if(sel->value.value) {
+                if(sel->type==MNU_ITEM_TOGGLE) {
+                    menu_control(menu,MNU_ENTER);
+                } else {
+                    decrease_value(sel);
+                    item_update_cache(sel);
+                }
+            }
+            break;
+        case MNU_RIGHT: /* Increase value */
+            if(sel->value.value) {
+                if(sel->type==MNU_ITEM_TOGGLE) {
+                    menu_control(menu,MNU_ENTER);
+                } else {
+                    increase_value(sel);
+                    item_update_cache(sel);
+                }
+            }
+            break;
+        case MNU_BACK: /* Return to parent menu */
+            if(m->parent) {
+                flush_menu(m);
+                *menu = m->parent;
+                break;
+            }
+            return m->escvalue;
+        case MNU_ENTER: /* Execute selection */
+            if(sel->type==MNU_ITEM_TOGGLE) {
+                toggle_value(sel);
+                item_update_cache(sel);
+            } else if(sel->type==MNU_ITEM_SUBMENU) {
+                *menu = (struct Menu*)sel->value.value;
+                (*menu)->selection=0;
+                if(is_sensitive(*menu,(*menu)->selection)==0)
+                    menu_control(menu,MNU_DOWN);
+            } else if(sel->type==MNU_ITEM_PARENT) {
+                menu_control(menu,MNU_BACK);
+            } else if(sel->type==MNU_ITEM_RETURN) {
+                return sel->ID;
+            }
+            break;
+    }
+    /* Execute action if any */
+    if(sel->action) { 
+        if(sel->action(cmd,sel))
+            item_update_cache(sel);
+    }
+    return 0;
+}
+
+/* Draw a single menu item */
+static void draw_menu_item(SDL_Surface *surface, SDL_Rect area,
+        struct MenuItem *item)
+{
+    struct dllist *icon=item->icons;
+    int leftx,rightx;
+
+    /* Draw the label */
+    if(item->label.txt.text || item->label.txt.function) {
+        if(item->label.cache==NULL)
+            item_update_cache(item);
+        switch(item->label.align) {
+            case MNU_ALIGN_LEFT:
+                area.x += item->parent->options.left_offset;
+                break;
+            case MNU_ALIGN_CENTER:
+                area.x += area.w/2 - item->label.cache->w/2;
+                break;
+            case MNU_ALIGN_RIGHT:
+                area.x += area.w - item->parent->options.right_offset -
+                    item->label.cache->w;
+                break;
+        }
+        SDL_BlitSurface(item->label.cache,NULL,surface,&area);
+    }
+
+    /* Draw icons */
+    leftx = area.x;
+    rightx = leftx + (item->label.cache?item->label.cache->w:0);
+    while(icon) {
+        struct MenuIcon *i = icon->data;
+        SDL_Surface *iconsurf=i->icon.surface;
+        switch(i->type) {
+            case MNU_ICON_GET:
+                iconsurf = i->icon.get_icon(item);
+            case MNU_ICON_SURF:
+                if(i->align==MNU_ALIGN_LEFT) {
+                    leftx -= iconsurf->w + i->margin;
+                    area.x = leftx;
+                } else {
+                    area.x = rightx + i->margin;
+                    rightx += iconsurf->w + i->margin;
+                }
+                SDL_BlitSurface(iconsurf,NULL,surface,&area);
+                break;
+            case MNU_ICON_DRAW:
+                if(i->align==MNU_ALIGN_LEFT)
+                    leftx -= i->icon.draw_icon(leftx-i->margin,
+                            area.y,i->align,item)+i->margin;
+                else
+                    rightx += i->icon.draw_icon(rightx+i->margin,
+                            area.y,i->align,item)+i->margin;
+                break;
+        }
+        icon=icon->next;
+    }
+}
+
+/* Draw the menu */
+void draw_menu(SDL_Surface *surface, struct Menu *menu) {
+    SDL_Rect rect;
+    struct dllist *item;
+
+    /* Call the predraw function if any */
+    if(menu->predraw)
+        menu->predraw(menu);
+
+    /* Draw the cursor */
+    rect.x = menu->options.area.x;
+    rect.w = menu->options.area.w;
+    rect.h = menu->options.spacing;
+    rect.y = menu->options.area.y+rect.h*menu->selection;
+    fill_box(surface,rect.x,rect.y,rect.w,rect.h,menu->options.selection_color);
+
+    /* Draw menu items */
+    item = menu->children;
+    rect.y = menu->options.area.y;
+    while(item) {
+        draw_menu_item(surface,rect,item->data);
+        rect.y += rect.h;
+        item=item->next;
+    }
+
+}
+
+/* Get an menu item by index number */
+struct MenuItem *get_menu_item(struct Menu *menu,int index) {
+    struct dllist *list = menu->children;
+    for(;index>0;index--) {
+        if(list->next==NULL) return NULL;
+        list=list->next;
+    }
+    return list->data;
+}
+
+/* Return a text menu label with default alignment and color */
+struct MenuText menu_txt_label(const char *text) {
+    struct MenuText txt;
+    txt.type = MNU_TXT_STR;
+    txt.txt.text = text;
+    txt.color = font_color_white;
+    txt.align = MNU_ALIGN_LEFT;
+    txt.cache = NULL;
+    return txt;
+}
+
+struct MenuText menu_func_label(const char *(*function) (struct MenuItem*)) {
+    struct MenuText txt;
+    txt.type = MNU_TXT_FUNC;
+    txt.txt.function = function;
+    txt.color = font_color_white;
+    txt.align = MNU_ALIGN_LEFT;
+    txt.cache = NULL;
+    return txt;
+}
+
+struct MenuIcon *menu_icon_get(SDL_Surface *(*get_icon)(struct MenuItem *item))
+{
+    struct MenuIcon *icon;
+    icon = malloc(sizeof(struct MenuIcon));
+    if(icon) {
+        icon->type = MNU_ICON_GET;
+        icon->icon.get_icon = get_icon;
+        icon->align = MNU_ALIGN_LEFT;
+        icon->margin = 10;
+    }
+    return icon;
+}
+
+struct MenuIcon *menu_icon_draw(int (*draw_icon) (int x, int y,
+            MenuAlign align,struct MenuItem* item))
+{
+    struct MenuIcon *icon;
+    icon = malloc(sizeof(struct MenuIcon));
+    if(icon) {
+        icon->type = MNU_ICON_DRAW;
+        icon->icon.draw_icon = draw_icon;
+        icon->align = MNU_ALIGN_RIGHT;
+        icon->margin = 10;
+    }
+    return icon;
+}
+
+
+struct MenuItem *add_submenu(struct Menu *m,int id, const char *label,struct Menu *sub) {
+    struct MenuValue val;
+    val.value = (int*)sub;
+    return add_menu_item(m,MNU_ITEM_SUBMENU,id,menu_txt_label(label),val);
+}
+

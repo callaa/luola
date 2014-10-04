@@ -29,5 +29,5 @@ is broken.
 The data header block loops for all the entries stored in the file.
 The files are looked up by the IDs assigned to them.
 You can also store an array of files under the same ID.
-(Usefull for storing sprites of an animation)
+(Useful for storing individual frames of an animation)
 

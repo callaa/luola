@@ -27,6 +27,7 @@
 /* Functions */
 extern void reinit_animation (void);
 extern void recalc_geometry(void);
+extern SDL_Rect get_viewport_size(void);
 extern void rearrange_animation (void);
 extern int pause_game (void);
 extern void kill_plr_screen (int plr);

@@ -28,40 +28,19 @@
 #include "weapon.h"
 #include "lconf.h"
 
-typedef enum { Bird, Cow, Fish, Bat, Infantry, Helicopter } CritterSpecies;
-typedef enum { FlyingCritter, GroundCritter, WaterCritter } CritterType;
 typedef enum { Blood, SomeBlood, Feather, LotsOfFeathers } SplatterType;
 
-struct Ship;
-
-typedef struct {
-    int x, y;
-    int x2, y2;
-    unsigned char frame;
-    unsigned char wait;
-    SDL_Rect rect;
-    Vector vector;
-    double angle;
-    int timer;
-    signed char owner;          /* So attacking critters know who not to shoot */
-    unsigned char health;
-    struct Ship *carried;
-    char explode;
-    int angry;
-    CritterType type;
-    CritterSpecies species;
-} Critter;
+struct Critter;
 
 /* Initialization */
-extern int init_critters (void);
+extern void init_critters (LDAT *datafile);
 extern void clear_critters (void);
-extern void prepare_critters (LevelSettings * settings);
+extern void prepare_critters (struct LevelSettings * settings);
 
 /* Handling */
-extern Critter *make_critter (CritterSpecies species, int x, int y,
-                              signed char owner);
-extern void add_critter (Critter * newcritter);
-extern void cow_storm (int x, int y);   /* Gravity wells effect critters as well */
+extern struct Critter *make_critter (ObjectType species, int x, int y,int owner);
+extern void add_critter (struct Critter * newcritter);
+extern void cow_storm (int x, int y); /* Gravity wells effect critters as well */
 extern void splatter (int x, int y, SplatterType type);
 extern int find_nearest_terrain (int x, int y, int h);
 

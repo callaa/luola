@@ -24,7 +24,6 @@
 #include <stdlib.h>
 #include "SDL.h"
 
-#include "defines.h"
 #include "fs.h"
 #include "console.h"
 #include "level.h"
@@ -126,6 +125,31 @@ void recalc_geometry(void)
     /* Stars must be recalculated after geometry change */
     if(oldgeom != screen_geometry)
         reinit_stars();
+}
+
+/* Get viewport size */
+SDL_Rect get_viewport_size(void) {
+    SDL_Rect size;
+    if(game_settings.bigscreens) {
+        int r,num=0;
+        for(r=0;r<4;r++)
+            if(players[r].state!=INACTIVE) num++;
+        if(num==1) {
+            size.w = screen->w;
+            size.h = screen->h;
+        } else if(num==2) {
+            size.w = screen->w;
+            size.h = screen->h/2;
+        } else {
+            size.w = screen->w/2;
+            size.h = screen->h/2;
+        }
+    } else {
+        size.w = screen->w/2;
+        size.h = screen->h/2;
+    }
+
+    return size;
 }
 
 /* Arrange screen update rectangles for quarter screens */

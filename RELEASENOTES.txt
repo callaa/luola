@@ -1,15 +1,34 @@
-Release notes for Luola 1.3.0
+Release notes for Luola 1.3.1
 ------------------------------
 
-Luola 1.3.0 breaks backwards compatability with old compact level
-files.
-Specifically the following things have changed in levels:
- * modified option was removed
- * smooth_scaling option was removed
- * scalex and scaley were replaced with aspect and zoom
+Luola 1.3.1 introduces yet more changes to the level file format.
+This time however, backwards compatability is maintained. The following
+changes were made to level configuration file format:
 
-Level scaling is now done using the 'aspect' and 'zoom' options.
-They accept floating point numbers as parameters.
-Level size is is calculated in the following manner:
-	width = width*aspect*zoom
-	height = height*zoom
+[end*] markers are no longer needed.
+[icon] block was removed
+thumbnail keyword was added to [main] block.
+
+Levels no longer have icons, but they can (and should) have a thumbnail.
+The thumbnail must be 120 pixels high.
+
+Compact level files no longer use a binary configuration block, but instead
+read the options from an embedded ASCII configuration file.
+All levels offered on Luola homepage will work in both Luola 1.3.0 and 1.3.1.
+Compact level files can now also contain multiple levels.
+
+Datafiles have been relocated.
+All image files are now packed in gfx.ldat, and all sounds are now in sfx.ldat
+The data directory now only contains the levels/ subdirectory.
+
+The compact level file creation utility mkecompact was removed. It is no not
+needed anymore, as Luola no longer uses the binary configuration file format.
+From now on, use the ldat utility to create compact level files.
+Example .pack file for ldat tool:
+
+ldat: mylevel.compact.lev
+0	ARTWORK		mylevel.png
+0	COLLISION	mylevelc.png
+0	CONFIG		mylevel.lev
+0	THUMBNAIL	mylevel.thumb.png
+

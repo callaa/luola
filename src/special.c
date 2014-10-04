@@ -27,7 +27,10 @@
 
 #include "SDL.h"
 
-#include "defines.h"
+#ifdef HAVE_CONFIG_H
+#include "../config.h"
+#endif
+
 #include "list.h"
 #include "fs.h"
 #include "player.h"
@@ -38,6 +41,10 @@
 #include "vector.h"
 #include "ship.h"
 #include "audio.h"
+
+#define WARP_FRAMES     21
+#define WARP_LOOP       10
+#define TURRET_FRAMES   15
 
 /* Internally used globals */
 static struct dllist *specials;
@@ -87,25 +94,19 @@ static int find_turret_y (int x, int y)
 }
 
 /*** Load level special images ***/
-int init_specials (void) {
+void init_specials (LDAT *specialfile) {
     int r;
-    LDAT *datafile;
     specials = NULL;
-    datafile =
-        ldat_open_file (getfullpath (GFX_DIRECTORY, "special.ldat"));
-    if(!datafile) return 1;
     for (r = 0; r < WARP_FRAMES; r++) {
-        fx_jumppoint_entry[r] = load_image_ldat (datafile, 0, 1, "WARP", r);
-        fx_jumppoint_exit[r] = load_image_ldat (datafile, 0, 1, "WARPE", r);
+        fx_jumppoint_entry[r] = load_image_ldat (specialfile, 0, T_ALPHA,"WARP",r);
+        fx_jumppoint_exit[r] = load_image_ldat (specialfile, 0, T_ALPHA,"WARPE",r);
     }
     for (r = 0; r < TURRET_FRAMES; r++) {
-        fx_turret[0][r] = load_image_ldat (datafile, 0, 1, "TURRET", r);
-        fx_turret[1][r] = load_image_ldat (datafile, 0, 1, "SAMSITE", r);
+        fx_turret[0][r] = load_image_ldat (specialfile, 0, T_ALPHA, "TURRET", r);
+        fx_turret[1][r] = load_image_ldat (specialfile, 0, T_ALPHA, "SAMSITE", r);
         fx_turret[2][r] = flip_surface (fx_turret[0][r]);
     }
-    fx_jumpgate[0] = load_image_ldat (datafile, 0, 1, "JUMPGATE", 0);
-    ldat_free (datafile);
-    return 0;
+    fx_jumpgate[0] = load_image_ldat (specialfile, 0, T_ALPHA, "JUMPGATE", 0);
 }
 
 /*** Clear all level specials at the end of the level ***/
@@ -115,11 +116,10 @@ void clear_specials (void) {
 }
 
 /*** Load level specials at the start of the level ***/
-void prepare_specials (LevelSettings * settings) {
+void prepare_specials (struct LevelSettings * settings) {
     SpecialObj *gate1, *gate2, *turret, *obj;
-    struct dllist *list, *list2;
+    struct dllist *list, *list2, *objects=NULL;
     int r, loops, tmpi;
-    LSB_Objects *object = NULL;
     /* Initialize jump gates */
     for (r = 0; r < level_settings.jumpgates; r++) {
         gate1 = malloc (sizeof (SpecialObj));
@@ -209,20 +209,16 @@ void prepare_specials (LevelSettings * settings) {
     }
     /* Initialize manually placed specials */
     if (settings)
-        object = settings->objects;
-    while (object) {
-        if (object->type < 0x10) {
+        objects = settings->objects;
+    while (objects) {
+        struct LSB_Object *object = objects->data;
+        if (object->type >= FIRST_SPECIAL && object->type <= LAST_SPECIAL) {
             obj = malloc (sizeof (SpecialObj));
-            if (object->type == 1)
+            if (object->type == OBJ_TURRET)
                 obj->type = Turret;
-            else if (object->type == 2)
+            else if (object->type == OBJ_JUMPGATE)
                 obj->type = JumpGate;
-            else {
-                printf ("Unrecognized special object type %d\n",
-                        object->type);
-                object = object->next;
-                continue;
-            }
+            else fprintf(stderr,"Warning: unhandled special %d\n",obj->type);
             obj->x = object->x;
             obj->y = object->y;
             obj->owner = -1;
@@ -250,7 +246,7 @@ void prepare_specials (LevelSettings * settings) {
                 obj->var1 = 3 + object->value;
             addspecial (obj);
         }
-        object = (LSB_Objects *) object->next;
+        objects = objects->next;
     }
     /* Pair up the jumpgates */
     list = specials;
@@ -273,8 +269,8 @@ void prepare_specials (LevelSettings * settings) {
                     list2 = list2->next;
                 }
                 if (list2 == NULL) {
-                    printf
-                        ("Warning ! Pairless jumpgate with id %d and link %d (removed)\n",
+                    fprintf(stderr,
+                         "Warning! Pairless jumpgate with id %d and link %d (removed)\n",
                          special->var1, (int) special->link);
                     list2 = list->next;
                     free(list->data);

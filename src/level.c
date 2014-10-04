@@ -25,16 +25,17 @@
 #include <stdio.h>
 #include <math.h>
 #include <string.h>
-#include "defines.h"
 #include "console.h"
-#include "stringutil.h"
 #include "player.h"
 #include "fs.h"
 #include "level.h"
 #include "levelfile.h"
 #include "particle.h"
 #include "weather.h"
+#include "animation.h"
 #include "ship.h"   /* for bump_ship() */
+
+#define BASE_REGEN_SPEED 9 /* Delay between each regenerated pixel */
 
 /* Level effects */
 typedef struct {
@@ -60,7 +61,7 @@ typedef struct {
 } Star;
 
 /* Internally used globals */
-static Star lev_stars[STARCOUNT];
+static Star lev_stars[15];
 
 /* Exported globals */
 Uint32 burncolor[FIRE_FRAMES];
@@ -96,7 +97,7 @@ static void draw_stars (SDL_Rect * cam, SDL_Rect * targ)
 {
     int r, x, y;
     Uint8 *col;
-    for (r = 0; r < STARCOUNT; r++) {
+    for (r = 0; r < sizeof(lev_stars)/sizeof(Star); r++) {
         x = cam->x + lev_stars[r].x;
         y = cam->y + lev_stars[r].y;
         col =
@@ -148,18 +149,11 @@ void init_level (void)
 /* Calculate star positions. This must be done when player screen */
 /* geometry changes. */
 void reinit_stars(void) {
-    int w=screen->w,h=screen->h,r;
-    /* Find an active player and use its screen geometry */
-    for(r=0;r<4;r++) {
-        if(players[r].state != INACTIVE) {
-            w = cam_rects[r].w;
-            h = cam_rects[r].h;
-            break;
-        }
-    }
-    for (r = 0; r < STARCOUNT; r++) {
-        lev_stars[r].x = rand () % w;
-        lev_stars[r].y = rand () % h;
+    SDL_Rect size = get_viewport_size();
+    int r;
+    for (r = 0; r < sizeof(lev_stars)/sizeof(Star); r++) {
+        lev_stars[r].x = rand () % size.w;
+        lev_stars[r].y = rand () % size.h;
     }
 }
 
@@ -189,24 +183,13 @@ void load_level (struct LevelFile *lev) {
     int x, y, p, r;
     int freepix, otherpix;
     SDL_Color *tmpcol, defaultwater;
-    Uint8 *bits, palette[256];
+    Uint8 *bits;
     int basebufsize;
 
     defaultwater.r = 0;
     defaultwater.g = 0;
     defaultwater.b = 255;
-    /* Get level palette */
-    if (lev->settings->palette) {
-        for (r = 0; r < 256; r++)
-            palette[r] = lev->settings->palette->entries[r];
-    } else {
-        for (r = 0; r < 256; r++) {
-            if(r<=LAST_TER)
-                palette[r] = r;
-            else
-                palette[r] = TER_FREE;
-        }
-    }
+
     /* Load level artwork */
     lev_level.terrain = load_level_art (lev);
     lev_level.width = lev_level.terrain->w;
@@ -220,14 +203,15 @@ void load_level (struct LevelFile *lev) {
     if (collmap->w != lev_level.width || collmap->h != lev_level.height) {
         printf
             ("Error Collision map image \"%s\" has incorrect size (%dx%d), should be %dx%d!\n",
-             lev->settings->mainblock->collmap, collmap->w, collmap->h,
+             lev->settings->mainblock.collmap, collmap->w, collmap->h,
              lev_level.width, lev_level.height);
         exit (1);
     }
     /* Get palette entries */
     /* Get water colour */
     tmpcol = &defaultwater;
-    find_color(TER_WATER,palette,collmap->format->palette,&tmpcol);
+    find_color(TER_WATER,lev->settings->palette.entries,
+            collmap->format->palette,&tmpcol);
     lev_watercol = map_rgba(tmpcol->r, tmpcol->g, tmpcol->b,0xff);
     lev_watercolrgb[0] = tmpcol->r;
     lev_watercolrgb[1] = tmpcol->g;
@@ -236,10 +220,11 @@ void load_level (struct LevelFile *lev) {
     tmpcol->r = (lev_watercolrgb[0] + 255) / 2;
     tmpcol->g = (lev_watercolrgb[0] + 200) / 2;
     tmpcol->b = (lev_watercolrgb[0] + 128) / 2;
-    col_clay2 = map_rgba(tmpcol->r, tmpcol->g, tmpcol->b, 0xff);
+    col_clay_uw = map_rgba(tmpcol->r, tmpcol->g, tmpcol->b, 0xff);
     /* Get snow colour */
     tmpcol = NULL;
-    find_color(TER_SNOW,palette,collmap->format->palette,&tmpcol);
+    find_color(TER_SNOW,lev->settings->palette.entries,
+            collmap->format->palette,&tmpcol);
     if (tmpcol) {
         col_snow = map_rgba(tmpcol->r, tmpcol->g, tmpcol->b,0xff);
     }
@@ -261,7 +246,7 @@ void load_level (struct LevelFile *lev) {
         bits = ((Uint8 *) collmap->pixels)+x;
         lev_level.solid[x] = malloc (lev_level.height);
         for (y = 0; y < lev_level.height; y++,bits+=collmap->pitch) {
-            lev_level.solid[x][y] = palette[*bits];
+            lev_level.solid[x][y] = lev->settings->palette.entries[*bits];
             if (lev_level.solid[x][y] == TER_FREE
                 || lev_level.solid[x][y] == TER_WATER)
                 freepix++;
@@ -310,7 +295,7 @@ void load_level (struct LevelFile *lev) {
     else
         y = 1;
     for (p = 0; p < 4; p++)
-        if (game_settings.players_in[p] != ' ') {
+        if (players[p].state != INACTIVE) {
             for (x = 0; x < y; x++) {
                 r = 0;
                 do {
@@ -318,13 +303,14 @@ void load_level (struct LevelFile *lev) {
                     lev_level.player_def_y[x][p] = rand () % lev_level.height;
                     r++;
                     if (r > 100000) {
-                        printf
-                            ("Warning: while searching for player %d startup position, loop counter reached 100000!\n",
+                        fprintf(stderr,
+                                "Warning: while searching for player %d startup position, loop counter reached 100000!\n",
                              p);
-                        printf
-                            ("Number of free space (including water) pixels: %d, number of other pixels: %d\n",
+                        fprintf(stderr,
+                            "Number of free space (including water) pixels: %d, number of other pixels: %d\n",
                              freepix, otherpix);
-                        printf ("%0.3f%% of the surface area is available\n",
+                        fprintf (stderr,
+                                "%0.3f%% of the surface area is available\n",
                                 ((double) freepix / (double) otherpix) * 100);
                         exit (0);
                     }
@@ -736,7 +722,7 @@ void animate_level (void)
                 if (list->fx->type == Earth) {
                     if (solid == TER_UNDERWATER)
                         putpixel (lev_level.terrain, list->fx->x, list->fx->y,
-                                  col_clay2);
+                                  col_clay_uw);
                     else
                         putpixel (lev_level.terrain, list->fx->x, list->fx->y,
                                   col_clay);

@@ -1,4 +1,4 @@
-Q: How can I run luola in fullscreen ?
+Q: How can I run luola in fullscreen?
 
 A: Run Luola with --fullscreen parameter.
   Fullscreen mode always works under windows. 
@@ -19,7 +19,7 @@ A: Run Luola with --fullscreen parameter.
       If you have framebuffer support compiled into your kernel and SDL, you can
       run luola without the X server
 
-Q: How can I enable the sounds ?
+Q: How can I enable the sounds?
 
 A: In order to enable the sounds, you must pass --enable-sounds to ./configure.
    You must have SDL_Mixer installed in order to use sounds. (Preferrably
@@ -30,7 +30,7 @@ A: In order to enable the sounds, you must pass --enable-sounds to ./configure.
    luola is quiet, check that you have sounds enabled from the startup options
    and audio settings menus.
 
-Q: What does SDL_gfx do and how do I enable it ?
+Q: What does SDL_gfx do and how do I enable it?
 
 A: SDL_gfx is compiled in by default, if available. To disable, pass
    --disable-sdl-gfx to configure script.
@@ -41,7 +41,7 @@ A: SDL_gfx is compiled in by default, if available. To disable, pass
    and Wings levels aren't as blocky as they are with luola's internal pixel
    resizer)
 
-Q: I can get any background music !
+Q: I can get any background music!
    I get the error message Module format not recognized
 
 A: The problem is in SDL_Mixer. You dont have support for the file type in

@@ -26,8 +26,8 @@
 
 #include "SDL.h"
 
-SDL_Surface *lcmap_to_surface (Uint8 * lcmap, int len);
-SDL_Surface *lcmap_to_surface_rw (SDL_RWops * rw);
-Uint8 *surface_to_lcmap (Uint32 * len, SDL_Surface * surface);
+extern SDL_Surface *lcmap_to_surface (Uint8 * lcmap, int len);
+extern SDL_Surface *lcmap_to_surface_rw (SDL_RWops * rw);
+extern Uint8 *surface_to_lcmap (Uint32 * len, SDL_Surface * surface);
 
 #endif

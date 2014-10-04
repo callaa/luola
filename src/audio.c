@@ -21,7 +21,10 @@
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  */
 
-#include "defines.h"
+#ifdef HAVE_CONFIG_H
+#include "../config.h"
+#endif
+
 #include "audio.h"
 
 #if HAVE_LIBSDL_MIXER
@@ -32,105 +35,97 @@
 #include <SDL/SDL.h>
 #include <SDL/SDL_mixer.h>
 
-/* Check SDL_Mixer version */
-#if (MIX_MAJOR_VERSION >= 1 && MIX_MINOR_VERSION >= 2 && MIX_PATCHLEVEL > 0) || (MIX_MAJOR_VERSION >= 1 && MIX_MINOR_VERSION > 2)
-#define MIXER_HAS_EFFECTS
-#else
-#warning You have an older version of SDL_Mixer, audio panning is not enabled.
-#warning Upgrade to SDL_Mixer 1.2.1 to get better effects.
-#endif
-
-
 #include "console.h"
 #include "fs.h"
-#include "stringutil.h"
 #include "startup.h"
+#include "parser.h"
 #include "player.h"
 #include "ship.h"
 #include "game.h"
 
-/* Playlist */
-typedef struct _Playlist {
-    char *file;
-    struct _Playlist *next;
-    struct _Playlist *prev;
-} Playlist;
-
 /* Globals */
-char audio_available = 0;
-char music_enabled = 0;
-Uint16 audio_format;
-Playlist *playlist, *playlist_original;
-int song_count, original_song_count;
-
-/* 
- * Remember, these have to be in the same order they are in the AudioSample enum
- * in audio.h
-*/
-static char *wavs[] = { "blip.wav", "blip2.wav", "fire.wav",
-    "fire2.wav","explosion.wav", "largexpl.wav","crash.wav",
-    "laser.wav", "jump.wav", "missile.wav", "zap.wav", "swoosh.wav",
-    "burn.wav", "dart.wav", "snowball.wav",
-    "cow.wav", "bird.wav", "steam.wav"
-};
+static int audio_available = 0;
+static struct dllist *playlist, *playlist_original;
 
 static Mix_Chunk *samples[SAMPLE_COUNT];
-static Mix_Music *music;
-
-#endif
+static Mix_Music *music=NULL;
 
 /* Music stopped playing, move on to the next track */
-void playlist_forward (void)
+static void playlist_forward (void)
 {
-#if HAVE_LIBSDL_MIXER
     music_skip (1);
     music_play ();
-#endif
 }
+
+/* Load the music file at current playlist position */
+static void load_music(void) {
+    if(music) {
+        Mix_FreeMusic (music);
+        music = NULL;
+    }
+    while(music==NULL && playlist!=NULL) {
+        music = Mix_LoadMUS (playlist->data);
+        if (music == NULL) {
+            struct dllist *next;
+            fprintf(stderr,"%s: %s\n", (char*)playlist->data, SDL_GetError());
+
+            free(playlist->data);
+            next = playlist->next;
+            if(next==NULL) next = playlist->prev;
+            dllist_remove(playlist);
+            playlist = next;
+        }
+    }
+}
+#endif
 
 /* Initialize */
 void init_audio ()
 {
 #if HAVE_LIBSDL_MIXER
+    Uint16 audio_format;
+    LDAT *ldat;
     int w;
-    Playlist *next;
 
     /* Initialize SDL_mixer library */
     audio_format = MIX_DEFAULT_FORMAT;
     if (Mix_OpenAudio
-        (luola_options.audio_rate, audio_format, luola_options.audio_channels,
+        (luola_options.audio_rate, audio_format, 2,
          luola_options.audio_chunks) < 0) {
-        printf ("Warning: Cannot open audio: %s\n", SDL_GetError ());
+        fprintf (stderr,"Cannot open audio: %s\n", SDL_GetError ());
         audio_available = 0;
         return;
     } else {
         audio_available = 1;
         Mix_QuerySpec (&luola_options.audio_rate, &audio_format,
-                       &luola_options.audio_channels);
+                       NULL);
     }
     /* Continue to the next song if it ends */
     Mix_HookMusicFinished (playlist_forward);
 
-    /* load samples */
-    for (w = 0; w < SAMPLE_COUNT; w++) {
-        samples[w] = Mix_LoadWAV (getfullpath (SND_DIRECTORY, wavs[w]));
-        if (samples[w] == NULL) {
-            printf ("Error: Cannot open wave \"%s\"\n", wavs[w]);
-            exit (1);
+    /* Load samples */
+    ldat = ldat_open_file(getfullpath(DATA_DIRECTORY,"sfx.ldat"));
+    if(!ldat) {
+        fprintf(stderr,"Can't load sound effects!");
+    } else {
+        for (w = 0; w < SAMPLE_COUNT; w++) {
+            samples[w] = Mix_LoadWAV_RW(ldat_get_item(ldat,"SFX",w),0);
+            if (samples[w] == NULL) {
+                fprintf (stderr,"Couldn't get SFX %d\n", w);
+            }
         }
     }
+    ldat_free(ldat);
+
     /* Load playlist */
     playlist = NULL;
-    song_count = 0;
     {
         FILE *fp;
         char tmps[512];
         char *line = NULL;
-        Playlist *newsong;
-        fp = fopen (getfullpath (HOME_DIRECTORY, PLAYLIST_FILE), "r");
+        fp = fopen (getfullpath (HOME_DIRECTORY, "battle.pls"), "r");
         if (!fp) {
-            printf ("No playlist file %s\n",
-                    getfullpath (HOME_DIRECTORY, PLAYLIST_FILE));
+            fprintf (stderr,"No playlist file battle.pls\n");
             return;
         }
         for (; fgets (tmps, sizeof (tmps) - 1, fp); free (line)) {
@@ -139,47 +134,17 @@ void init_audio ()
                 continue;
             if (line[0] == '#')
                 continue;
-            newsong = malloc (sizeof (Playlist));
-            newsong->next = NULL;
-            newsong->prev = playlist;
-            newsong->file = malloc (strlen (line) + 1);
-            strcpy (newsong->file, line);
-            if (playlist == NULL)
-                playlist = newsong;
-            else {
-                playlist->next = newsong;
-                playlist = playlist->next;
-            }
-            song_count++;
+            if(playlist)
+                dllist_append(playlist,strdup(line));
+            else
+                playlist = dllist_append(NULL,strdup(line));
         }
         fclose (fp);
-        /* Rewind the playlist */
-        if (playlist)
-            while (playlist->prev)
-                playlist = playlist->prev;
-        playlist_original = playlist;
-        original_song_count = song_count;
-        /* And load the first song */
-        music = NULL;
-        while (music == NULL) {
-            if (playlist) {
-                music = Mix_LoadMUS (playlist->file);
-                if (music == NULL) {
-                    printf
-                        ("Warning: File \"%s\" from playlist could not be loaded, skipping.\n",
-                         playlist->file);
-                    printf ("-> %s\n", SDL_GetError ());
-                    if (playlist->next)
-                        playlist->next->prev = playlist->prev;
-                    if (playlist->prev)
-                        playlist->prev->next = playlist->next;
-                    next = playlist->next;
-                    free (playlist);
-                    playlist = next;
-                }
-            } else
-                break;
-        }
+
+        playlist_original = NULL;
+
+        /* Load the first song */
+        load_music();
     }
 #endif
 }
@@ -187,7 +152,7 @@ void init_audio ()
 void playwave (AudioSample sample)
 {
 #if HAVE_LIBSDL_MIXER
-    if (!audio_available || !game_settings.sounds)
+    if (!audio_available || !game_settings.sounds || samples[sample]==NULL)
         return;
     Mix_PlayChannel (-1, samples[sample], 0);
 #endif
@@ -196,17 +161,13 @@ void playwave (AudioSample sample)
 void playwave_3d (AudioSample sample, int x, int y)
 {
 #if HAVE_LIBSDL_MIXER
-#ifdef MIXER_HAS_EFFECTS
-    Uint8 dist;
-    Sint16 angle;
-#endif
+    int dist,angle;
     int nearest;
-    if (!audio_available || !game_settings.sounds)
+    if (!audio_available || !game_settings.sounds || samples[sample]==NULL)
         return;
     nearest = hearme (x, y);
     if (nearest < 0)
         return;
-#ifdef MIXER_HAS_EFFECTS
     if (players[nearest].ship) {
         x = x - players[nearest].ship->x;
         y = y - players[nearest].ship->y;
@@ -217,9 +178,6 @@ void playwave_3d (AudioSample sample, int x, int y)
     dist = (0.5 + (hypot (x, y) / HEARINGRANGE)) * 180;
     angle = atan2 (x, y) * (180.0 / M_PI);
     Mix_SetPosition (Mix_PlayChannel (-1, samples[sample], 0), angle, dist);
-#else
-    Mix_PlayChannel (-1, samples[sample], 0);
-#endif
 #endif
 }
 
@@ -242,7 +200,7 @@ void audio_setmusvolume(int volume)
 void music_play (void)
 {
 #if HAVE_LIBSDL_MIXER
-    if (!playlist || game_settings.music == 0)
+    if (!playlist || game_settings.music == 0 || music==NULL)
         return;
     Mix_VolumeMusic (game_settings.music_vol);
     Mix_PlayMusic (music, 1);
@@ -254,53 +212,45 @@ void music_stop (void)
 #if HAVE_LIBSDL_MIXER
     if (!playlist || game_settings.music == 0)
         return;
-    Mix_HaltMusic ();
+    Mix_FadeOutMusic (500);
+#endif
+}
+
+void music_wait_stopped(void) {
+#if HAVE_LIBSDL_MIXER
+    while(Mix_FadingMusic()!=MIX_NO_FADING) {
+        SDL_Delay(100);
+    }
 #endif
 }
 
 void music_skip (int skips)
 {
 #if HAVE_LIBSDL_MIXER
-    int s;
-    Playlist *next;
-    if (!playlist || game_settings.music == 0)
+    if (playlist == NULL || game_settings.music == 0)
         return;
-    if (music)
-        Mix_FreeMusic (music);
-    music = NULL;
-    if ((game_settings.playlist != 0 && skips != 0) || skips < 0)
-        skips = rand () % song_count;
-    for (s = 0; s < skips; s++)
+
+    if (game_settings.playlist == PLS_SHUFFLED || skips < 0)
+        skips = rand () % dllist_count(playlist);
+    while(skips-- > 0) {
         if (playlist->next)
             playlist = playlist->next;
         else
             while (playlist->prev)
                 playlist = playlist->prev;
-    while (music == NULL) {
-        music = Mix_LoadMUS (playlist->file);
-        if (music == NULL) {
-            printf
-                ("Warning: File \"%s\" from playlist does not exist, skipping.\n",
-                 playlist->file);
-            if (playlist->next)
-                playlist->next->prev = playlist->prev;
-            if (playlist->prev)
-                playlist->prev->next = playlist->next;
-            next = playlist->next;
-            free (playlist);
-            playlist = next;
-        }
-        if (playlist == NULL)
-            break;
     }
+
+    load_music();
 #endif
 }
 
 void music_newplaylist (void)
 {
 #if HAVE_LIBSDL_MIXER
+    if(playlist_original) {
+        fprintf(stderr,"music_newplaylist: old playlist still exists!\n");
+    }
     playlist_original = playlist;
-    song_count = 0;
     playlist = NULL;
 #endif
 }
@@ -308,38 +258,22 @@ void music_newplaylist (void)
 void music_restoreplaylist (void)
 {
 #if HAVE_LIBSDL_MIXER
-    Playlist *tmp;
-    if (playlist) {
-        while (playlist->prev)
-            playlist = playlist->prev;
-        while (playlist) {
-            tmp = playlist->next;
-            free (playlist);
-            playlist = tmp;
-        }
+    if(!playlist_original) {
+        fprintf(stderr,"music_restoreplaylist: restoring NULL playlist!\n");
     }
+    dllist_free(playlist,free);
     playlist = playlist_original;
-    song_count = original_song_count;
+    playlist_original = NULL;
 #endif
 }
 
-void music_add_song (char *filename)
+void music_add_song (const char *filename)
 {
 #if HAVE_LIBSDL_MIXER
-    if (playlist == NULL) {
-        playlist = malloc (sizeof (Playlist));
-        memset (playlist, 0, sizeof (Playlist));
-        playlist->file = filename;
-    } else {
-        while (playlist->next)
-            playlist = playlist->next;
-        playlist->next = malloc (sizeof (Playlist));
-        playlist->next->prev = playlist;
-        playlist = playlist->next;
-        playlist->next = NULL;
-        playlist->file = filename;
-    }
-    song_count++;
+    if(playlist)
+        dllist_append(playlist,strdup(filename));
+    else
+        playlist = dllist_append(NULL,strdup(filename));
 #endif
 }
 

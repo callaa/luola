@@ -36,19 +36,23 @@ struct KeyValue {
 	char *value;
 };
 
-typedef enum {CFG_INT,CFG_FLOAT,CFG_DOUBLE,CFG_STRING} CfgPtrType;
+typedef enum {CFG_INT,CFG_FLOAT,CFG_DOUBLE,CFG_STRING,CFG_MULTISTRING} CfgPtrType;
 
+/* Read a configuration file. Returns a list of ConfigBlocks */
 extern struct dllist *read_config_file(const char *filename,int quiet);
 
+/* Read a configuration file from an SDL_RWops. len is the length of the */
+/* configuration file. If 0, RWops is read until EOF. */
+extern struct dllist *read_config_rw(SDL_RWops *rw,size_t len,int quiet);
+
+/* Extract data from a ConfigBlock */
 extern void translate_config(struct dllist *values,int count,char **keys,CfgPtrType *types,void **pointers,int quiet);
 
+/* Free a config block. Pass to dllist_free() */
 extern void free_config_file(void *data);
 
-/* Some useful functions */
-/* need to export ? */
-extern char *stripWhiteSpace(const char *str);
-extern int splitString(char *str,char delim,char **left,char **right);
-extern char *readLine(FILE *fp);
+/* Strip all whitespace characters from beginning and end */
+extern char *strip_white_space (const char *str);
 
 #endif
 

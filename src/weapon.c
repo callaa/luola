@@ -24,7 +24,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
-#include "defines.h"
 
 #include "fs.h"
 #include "console.h"
@@ -41,7 +40,25 @@
 
 #include "audio.h"
 
-#include "hole.h"
+#define HOLE_W 9
+#define HOLE_H 9
+
+static Uint8 wea_gnaw[HOLE_H][HOLE_W] = {
+    {1, 1, 1, 1, 0, 1, 1, 1, 1},
+    {1, 1, 1, 0, 0, 0, 1, 1, 1},
+    {1, 0, 0, 0, 0, 0, 0, 0, 1},
+    {1, 0, 0, 0, 0, 0, 0, 0, 1},
+    {0, 0, 0, 0, 0, 0, 0, 0, 0},
+    {1, 0, 0, 0, 0, 0, 0, 0, 1},
+    {1, 0, 0, 0, 0, 0, 0, 0, 1},
+    {1, 1, 1, 0, 0, 0, 1, 1, 1},
+    {1, 1, 1, 1, 0, 1, 1, 1, 1}
+};
+
+/* Number of frames in explosion animation */
+#define EXPL_FRAMES     7
+/* How soon an explosion sends out shrapnel */
+#define EXPLOSION_CLUSTER_SPEED 5
 
 /* Explosion */
 struct Explosion {
@@ -60,7 +77,105 @@ static Vector wea_gravity;
 static SDL_Surface *wea_explosion[EXPL_FRAMES];
 static int gravity_weapon_count;        /* How many gravity weapons there are */
 
-static Uint8 wea_gnaw[16][16];
+const char *weap2str (int weapon)
+{
+    switch (weapon) {
+    case WCannon:
+        return "Cannon";     /* This is the ordinary weapon, it should newer get here */
+    case WGrenade:
+        return "Grenade";
+    case WMegaBomb:
+        return "Mega bomb";
+    case WMissile:
+        return "Homing missile";
+    case WCloak:
+        return "Cloaking device";
+    case WMagMine:
+        return "Magnetic mine";
+    case WMine:
+        return "Mine";
+    case WShield:
+        return "Shield";
+    case WGhostShip:
+        return "Ghost Ship";
+    case WAfterBurner:
+        return "After Burner";
+    case WWarp:
+        return "Jump engine";
+    case WClaybomb:
+        return "Claybomb";
+    case WPlastique:
+        return "Plastic explosive";
+    case WSnowball:
+        return "Snowball";
+    case WDart:
+        return "Dart";
+    case WLandmine:
+        return "Landmine";
+    case WRepair:
+        return "Autorepair system";
+    case WInfantry:
+        return "Infantry";
+    case WHelicopter:
+        return "Helicopter";
+    case WSpeargun:
+        return "Speargun";
+    case WGravGun:
+        return "Grav-gun";
+    case WGravMine:
+        return "Gravity mine";
+    case WZapper:
+        return "Thunderbolt";
+    case WShotgun:
+        return "Shotgun";
+    case WRocket:
+        return "Rocket";
+    case WEnergy:
+        return "Microwave cannon";
+    case WBoomerang:
+        return "Boomerang bomb";
+    case WRemote:
+        return "Remote control";
+    case WDivide:
+        return "Dividing mine";
+    case WTag:
+        return "Tag-gun";
+    case WMush:
+        return "Mush";
+    case WWatergun:
+        return "Watergun";
+    case WEmber:
+        return "Ember";
+    case WAcid:
+        return "Acid";
+    case WMirv:
+        return "MIRV";
+    case WFlame:
+        return "Flamethrower";
+    case WEMP:
+        return "EMP";
+    case WAntigrav:
+        return "Gravity coil";
+    }
+    return "foo";
+}
+
+const char *sweap2str (int weapon)
+{
+    switch (weapon) {
+    case SShot:
+        return "Cannon";
+    case S3ShotWide:
+        return "Wide triple shot";
+    case S3ShotTight:
+        return "Tight triple shot";
+    case SSweep:
+        return "Sweeping shots";
+    case S4Way:
+        return "4 Way";
+    }
+    return "foo";
+}
 
 /* Can this type of a weapon collide with a ship ? */
 static char can_collide_with_ship (ProjectileType type)
@@ -95,22 +210,16 @@ static unsigned char hit_ship_proximity (ProjectileType type)
 }
 
 /* Initialize */
-int init_weapons (void) {
-    LDAT *datafile;
+void init_weapons (LDAT *explosionfile) {
     int r;
     projectiles = NULL;
     last_proj = NULL;
     explosions = NULL;
     wea_gravity.y = -WEAP_GRAVITY;
     wea_gravity.x = 0;
-    datafile = ldat_open_file ( getfullpath (GFX_DIRECTORY, "explosion.ldat"));
-    if(!datafile) return 1;
     for (r = 0; r < EXPL_FRAMES; r++) {
-        wea_explosion[r] = load_image_ldat (datafile, 0, 1, "EXPL", r);
+        wea_explosion[r] = load_image_ldat (explosionfile, 0, T_ALPHA, "EXPL", r);
     }
-    ldat_free (datafile);
-    set_hole_size (game_settings.holesize);
-    return 0;
 }
 
 /* Clear weapons */
@@ -122,26 +231,6 @@ void clear_weapons (void)
     projectiles=NULL;
     last_proj = NULL;
     gravity_weapon_count = 0;
-}
-
-/* Set the proper hole size */
-void set_hole_size (Uint8 size)
-{
-    int x, y;
-    for (x = 0; x < HOLE_W; x++)
-        for (y = 0; y < HOLE_H; y++)
-            switch (size) {
-            case 0:            /* Tiny */
-                wea_gnaw[x][y] = wea_gnaw_tiny[x][y];
-            case 1:            /* Small */
-                wea_gnaw[x][y] = wea_gnaw_small[x][y];
-                break;
-            case 2:            /* Normal */
-                wea_gnaw[x][y] = wea_gnaw_normal[x][y];
-                break;
-            case 3:            /* Big */
-                wea_gnaw[x][y] = wea_gnaw_big[x][y];
-            }
 }
 
 Projectile *make_projectile (double x, double y, Vector v) {
@@ -216,8 +305,8 @@ void add_explosion (int x, int y, ProjectileType cluster) {
                 for (fy = 0; fy < HOLE_H; fy++) {
                     if (wea_gnaw[fx][fy])
                         continue;
-                    rx = fx - HOLE_W2 + x;
-                    ry = fy - HOLE_H2 + y;
+                    rx = fx - HOLE_W/2 + x;
+                    ry = fy - HOLE_H/2 + y;
                     if (rx < 0 || ry < 0 || rx >= lev_level.width
                         || ry >= lev_level.height)
                         continue;
@@ -244,8 +333,8 @@ void add_explosion (int x, int y, ProjectileType cluster) {
             for (fy = 0; fy < HOLE_H; fy++) {
                 if (wea_gnaw[fx][fy])
                     continue;
-                rx = fx - HOLE_W2 + x;
-                ry = fy - HOLE_H2 + y;
+                rx = fx - HOLE_W/2 + x;
+                ry = fy - HOLE_H/2 + y;
                 if (rx < 0 || ry < 0 || rx >= lev_level.width
                     || ry >= lev_level.height)
                     continue;
@@ -255,8 +344,8 @@ void add_explosion (int x, int y, ProjectileType cluster) {
                     || solid == TER_TUNNEL || solid == TER_WALKWAY)
                     putpixel (lev_level.terrain, rx, ry, col_gray);
             }
-        rx = x + HOLE_W2;
-        ry = y + HOLE_H2;
+        rx = x + HOLE_W/2;
+        ry = y + HOLE_H/2;
         solid = lev_level.solid[rx][ry];
         if (solid == TER_COMBUSTABLE || solid == TER_COMBUSTABL2)
             start_burning (rx, ry);
@@ -398,7 +487,7 @@ static inline void draw_explosions (void) {
         struct Explosion *expl=elist->data;
         tmpsurf = wea_explosion[expl->frame];
         for (p = 0; p < 4; p++) {
-            if (players[p].state==ALIVE) {
+            if (players[p].state==ALIVE || players[p].state==DEAD) {
                 rect.x = lev_rects[p].x + expl->x - cam_rects[p].x - 8;
                 rect.y = lev_rects[p].y + expl->y - cam_rects[p].y - 8;
                 if ((rect.x > lev_rects[p].x
@@ -581,8 +670,7 @@ void animate_weapons (void)
                         case Plastique:
                             explode = -1;
                             alter_level (Round(proj->x), Round(proj->y),
-                                         5 + 3 * (game_settings.holesize),
-                                         Explosive);
+                                         10, Explosive);
                             playwave_3d (WAV_SWOOSH, proj->x, proj->y);
                             break;
                         case Claybomb:

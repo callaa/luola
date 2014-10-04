@@ -80,15 +80,32 @@ struct dllist *dllist_remove(struct dllist *elem) {
     return next;
 }
 
+int dllist_count(struct dllist *list) {
+    int count=0;
+    if(list) {
+        struct dllist *ptr=list->prev;
+        while(list) {
+            ++count;
+            list=list->next;
+        }
+        while(ptr) {
+            ++count;
+            ptr=ptr->prev;
+        }
+    }
+    return count;
+}
+
 void dllist_free(struct dllist *list,void (*freefunction)(void *data)) {
-	struct dllist *next;
-	if(!list) return;
-	while(list->prev) list=list->prev;
-	while(list) {
-        if(freefunction) freefunction(list->data);
-		next=list->next;
-		free(list);
-		list=next;
-	}
+    if(list) {
+        struct dllist *next;
+        while(list->prev) list=list->prev;
+        while(list) {
+            if(freefunction) freefunction(list->data);
+            next=list->next;
+            free(list);
+            list=next;
+        }
+    }
 }
 

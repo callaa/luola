@@ -30,7 +30,7 @@
 #include "SDL.h"
 
 #include "ldat.h"
-#include "lconf2bin.h"
+#include "thumbnail.h"
 
 #include "im_vwing.h"
 #include "im_wings.h"
@@ -60,19 +60,8 @@ static void print_help(void) {
 	exit(0);
 }
 
-/* Initialize SDL, if not already */
-static void init_sdl(void) {
-    if(SDL_WasInit(SDL_INIT_VIDEO)==0) {
-        if(SDL_Init(SDL_INIT_VIDEO)) {
-            fprintf(stderr,"Couldn't initialize SDL: %s\n",SDL_GetError());
-            exit(1);
-        }
-        atexit(SDL_Quit);
-    }
-}
-
 /*
- * Strip extension (everything after the last .) from a filename
+ * Strip extension (everything after the last '.') from a filename
  */
 static char *strip_extension(const char *filename) {
     static char path[PATH_MAX];
@@ -101,44 +90,28 @@ static int pack_file(const char *filename, char *ID,int index,LDAT *ldat) {
     return 0;
 }
 
-/* 
- * Pack level settings to LDAT
- */
-static void pack_settings(LevelSettings *settings,LDAT *ldat) {
-    SDL_RWops *rw;
-    int size;
-    rw=LevelSetting2bin(settings,&size);
-    ldat_put_item(ldat,"SETTINGS",0,rw,size);
-}
-
 /*
  * Pack files to a compact level file
  */
 static int make_compact(const struct Files *files,const char *filename) {
-    LevelSettings *settings;
     LDAT *lev;
-
-    /* Load settings */
-    settings=load_level_config(files->cfgfile);
-    if(settings==NULL) {
-        printf("Couldn't load level configuration file!\n");
-        return 1;
-    }
+    int rval;
 
     /* Create archive */
     lev = ldat_create();
 
     /* Pack level files */
-    pack_settings(settings,lev);
     if(files->artwork)
         pack_file(files->artwork,"ARTWORK",0,lev);
     pack_file(files->collmap,"COLLISION",0,lev);
+    if(files->thumbnail)
+        pack_file(files->thumbnail,"THUMBNAIL",0,lev);
     pack_file(files->cfgfile,"SOURCE",0,lev);
 
     /* Save level */
-    ldat_save_file(lev,filename);
+    rval = ldat_save_file(lev,filename);
     ldat_free(lev);
-    return 0;
+    return rval;
 }
 
 /*
@@ -165,14 +138,11 @@ static int import_file(const char *filename,int makecompact,int makelcmap) {
     }
     if(format==-1) {
         printf("Unknown format\n");
+        fclose(fp);
         return 1;
     } else {
         printf("%s format\n",importer[format].name);
     }
-
-    /* Initialize SDL if required */
-    if(importer[format].need_sdl)
-        init_sdl();
 
     /* Load level to memory */
     if(importer[format].load_level(fp)) {
@@ -189,12 +159,10 @@ static int import_file(const char *filename,int makecompact,int makelcmap) {
     saved = importer[format].save_level(basename,makelcmap);
     if(saved.failed) return 1;
 
-    if(!makecompact) {
-        printf("Saved files:\n");
-        if(saved.artwork) printf("\t%s\n",saved.artwork);
-        printf("\t%s\n",saved.collmap);
-        printf("\t%s\n",saved.cfgfile);
-    }
+    /* Generate thumbnail */
+    if(make_thumbnail(saved.artwork?saved.artwork:saved.collmap,
+                saved.thumbnail, 120,importer[format].aspect))
+        saved.thumbnail = NULL;
 
     /* Free memory */
     importer[format].unload_level();
@@ -203,13 +171,19 @@ static int import_file(const char *filename,int makecompact,int makelcmap) {
     if(makecompact) {
         char *compactfile = strip_extension(filename);
         strcat(compactfile,".compact.lev");
-        init_sdl();
         make_compact(&saved,compactfile);
 
         if(saved.artwork) remove(saved.artwork);
         remove(saved.collmap);
         remove(saved.cfgfile);
+        if(saved.thumbnail) remove(saved.thumbnail);
         printf("Saved file:\n\t%s\n",compactfile);
+    } else {
+        printf("Saved files:\n");
+        if(saved.artwork) printf("\t%s\n",saved.artwork);
+        printf("\t%s\n",saved.collmap);
+        printf("\t%s\n",saved.cfgfile);
+        if(saved.thumbnail) printf("\t%s\n",saved.thumbnail);
     }
 
     return 0;
@@ -231,6 +205,14 @@ int main(int argc,char *argv[]) {
 
 	/* Parse command line arguments */
 	if(argc==1) print_help();
+
+    /* Initialize SDL. Needed for thumbnail generation,
+     * and in some cases, image loading. */
+    if(SDL_Init(SDL_INIT_VIDEO)) {
+        fprintf(stderr,"Couldn't initialize SDL: %s\n",SDL_GetError());
+        return 1;
+    }
+    atexit(SDL_Quit);
 
     /* Loop thru command line arguments and import levels */
 	for(r=1;r<argc;r++) {

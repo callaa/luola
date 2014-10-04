@@ -23,13 +23,15 @@
 
 #include <stdlib.h>
 
-#include "defines.h"
 #include "console.h"
 #include "list.h"
 #include "game.h"
 #include "level.h"
 #include "player.h"
 #include "weather.h"
+
+#define SNOWFLAKE_INTERVAL      20
+#define MAX_WIND_TIME	400     /* Maximium time in frames that a breeze can last */
 
 /* List of weather effects */
 struct WeatherFX {
@@ -40,34 +42,24 @@ struct WeatherFX {
 };
 
 /* Internally used globals */
-static struct dllist *weather_list;
+static struct dllist *weather_list=NULL;
 static int weather_snowsource_i2;
 static int weather_wind_targ_vector;
-static int weather_windy;
+static int weather_windy=1;
 
 /* Exported globals */
-double weather_wind_vector;     /* Ok, so this really isn't a vector, but we only need the X component */
-
-/* Initialize */
-void init_weather (void)
-{
-    weather_list = NULL;
-    weather_wind_vector = 0;
-    weather_windy = 1;
-}
-
-/* Deinitialize. */
-void deinit_weather (void) {
-    dllist_free(weather_list,free);
-    weather_list=NULL;
-}
+double weather_wind_vector=0; /* Ok, so this really isn't a vector, but we only need the X component */
 
 /* Prepare weather for the next level */
 void prepare_weather (void)
 {
     struct WeatherFX *newfx;
     int r;
-    deinit_weather ();
+    /* Clear up old weather */
+    dllist_free(weather_list,free);
+    weather_list=NULL;
+
+    /* Currently, snowfall is the only type of weather supported */
     if (level_settings.snowfall == 0)
         return;
     weather_snowsource_i2 = lev_level.width / 15;

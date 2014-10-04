@@ -27,6 +27,11 @@
 #include "weapon.h"
 #include "lconf.h"
 
+/* How long does a jump-point last */
+#define JPLONGLIFE	    400
+#define JPMEDIUMLIFE    100
+#define JPSHORTLIFE     25
+
 typedef enum { Unknown, JumpGate, WarpExit, WarpEntry, Turret } SpecialType;
 
 typedef struct _SpecialObj {
@@ -43,9 +48,9 @@ typedef struct _SpecialObj {
 } SpecialObj;
 
 /* Initialization */
-extern int init_specials (void);
+extern void init_specials (LDAT *specialfile);
 extern void clear_specials (void);
-extern void prepare_specials (LevelSettings * settings);
+extern void prepare_specials (struct LevelSettings * settings);
 
 /* Append a new special object to the list */
 extern void addspecial (SpecialObj * special);

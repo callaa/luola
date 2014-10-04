@@ -24,16 +24,18 @@
 #ifndef STARTUP_H
 #define STARTUP_H
 
-/* The structure containing all the options */
+typedef enum {VID_640,VID_800,VID_1024} Videomode;
+
+/* All startup options */
 typedef struct {
     int fullscreen;
     int hidemouse;
     int joystick;
     int sounds;
-    int audio_rate, audio_channels, audio_chunks;
+    int audio_rate, audio_chunks;
     int sfont;
     int mbg_anim;
-    enum {VID_640,VID_800,VID_1024} videomode;
+    Videomode videomode;
 } StartupOptions;
 
 /* The structure used by everyone */
@@ -52,6 +54,6 @@ extern int parse_argument (int r, int argc, char **argv);
 
 /* Save the startup configuration to file.		*/
 /* Returns non-zero on error.				*/
-extern char save_startup_config (void);
+extern int save_startup_config (void);
 
 #endif

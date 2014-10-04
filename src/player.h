@@ -50,7 +50,7 @@ typedef struct {
 } Player;
 
 /* Initialization */
-extern int init_players (void);
+extern void init_players (LDAT *misc);
 extern void reinit_players (void);
 
 /* Animation */
@@ -67,6 +67,7 @@ extern void set_player_message (int plr, FontSize size,
                                 SDL_Color color, int dur, const char *msg, ...);
 extern void player_cleanup (void);
 extern void recall_ship (int plr);
+extern int active_players(void);
 
 /* Input */
 extern void player_keyhandler (SDL_KeyboardEvent * event, Uint8 type);
@@ -79,9 +80,5 @@ extern int player_teams[4];
 extern int radars_visible;
 extern int plr_teams_left;
 extern SDL_Surface *plr_messages[4];
-
-/* Shh.. Quiet ! */
-extern void cheatcode (SDLKey sym);
-extern char cheat, cheat1;
 
 #endif

@@ -172,7 +172,9 @@ static int write_bmp(const char *filename) {
 /*
  * Write out level configuration file
  */
-static int write_cfg(const char *basename,const char *collmap,const char *filename) {
+static int write_cfg(const char *basename,const char *collmap,
+        const char *thumbnail,const char *filename)
+{
     const char *slash,*dot;
     char name[256];
     FILE *fp;
@@ -194,9 +196,9 @@ static int write_cfg(const char *basename,const char *collmap,const char *filena
     fprintf(fp, "# Wings level configuration file generated with importlev\n");
     fprintf(fp,"[main]\n");
     fprintf(fp,"collisionmap = %s\n",collmap);
+    fprintf(fp,"thumbnail = %s\n",thumbnail);
     fprintf(fp,"name = %s\n", name);
-    fprintf(fp,"zoom = 2\n");
-    fprintf(fp,"[end]\n\n");
+    fprintf(fp,"zoom = 3\n\n");
     fprintf(fp,"# Support for the Wings 1.40 palette according to colors.txt\n");
     fprintf(fp,"[palette]\n");
     fprintf(fp,"1-31 = ground\n"
@@ -214,33 +216,6 @@ static int write_cfg(const char *basename,const char *collmap,const char *filena
                "96-111 = ground\n"
                "112-127 = combustable\n"
                "128-255 = ground\n");
-    fprintf(fp,"[end]\n\n[icon]\n");
-    fprintf(fp,"/* XPM */\n"
-               "static char * wings_xpm[] = {\n"
-               "\"31 14 8 1\",\n"
-               "\"       c None\",\n"
-               "\".      c #020202\",\n"
-               "\"+      c #7C7BA1\",\n"
-               "\"@      c #706F8D\",\n"
-               "\"#      c #67667E\",\n"
-               "\"$      c #646277\",\n"
-               "\"%%      c #9F9ED3\",\n"
-               "\"&      c #8C8BB9\",\n"
-               "\"              .................\",\n"
-               "\"...  ... ......@@++&+&&+&+&&%%&.\",\n"
-               "\".%%. ..&. .&..@.##@#@@++++++&&&.\",\n"
-               "\".%%...&&...&....................\",\n"
-               "\".%%..&.&..+..@..$.#...##.@...++.\",\n"
-               "\".&..&.+..+..#..#$.#..#.##..@...\",\n"
-               "\".&.&..+.#. .#..#..@.#. .#..@+..\",\n"
-               "\".&.&..+.#...#..+..@.@. .+....+.\",\n"
-               "\".++. .#@. .#..+..&..+..&..+....\",\n"
-               "\".@.  .+.  .+..+..&...&&&...%%&&.\",\n"
-               "\"...................&...&.......\",\n"
-               "\".##@@++++&&&&&%%%%%%%%..%%%%%%. .%%%%&&.\",\n"
-               "\".$#+@+++&+&&%%&%%%%%%%%. ...  .%%%%%%&.\",\n"
-               "\"...................       .....\"};\n"
-               "[end]\n");
     fclose(fp);
     return 0;
 }
@@ -251,7 +226,7 @@ static int write_cfg(const char *basename,const char *collmap,const char *filena
  * lcmap option is not used for this type of level
  */
 static struct Files save_level(const char *basename,int lcmap) {
-    static char bmpfile[PATH_MAX],cfgfile[PATH_MAX];
+    static char bmpfile[PATH_MAX],cfgfile[PATH_MAX],thumbnailfile[PATH_MAX];
     struct Files result;
 
     if(lcmap) {
@@ -261,6 +236,8 @@ static struct Files save_level(const char *basename,int lcmap) {
     strcat(bmpfile,".luola.bmp");
     strcpy(cfgfile,basename);
     strcat(cfgfile,".luola.lev");
+    strcpy(thumbnailfile,basename);
+    strcat(thumbnailfile,".thumb.png");
 
     result.failed=0;
     result.artwork=NULL;
@@ -269,7 +246,7 @@ static struct Files save_level(const char *basename,int lcmap) {
 
     if(write_bmp(bmpfile)) {
         result.failed = 1;
-    } else if(write_cfg(basename,bmpfile,cfgfile)) {
+    } else if(write_cfg(basename,bmpfile,thumbnailfile,cfgfile)) {
         remove(bmpfile);
         result.failed=1;
     }
@@ -283,7 +260,7 @@ static struct Files save_level(const char *basename,int lcmap) {
 struct Importer register_wings(void) {
     struct Importer i;
     i.name = "Wings";
-    i.need_sdl = 1;
+    i.aspect = 1.0;
     i.check_format = check_format;
     i.load_level = load_level;
     i.unload_level = unload_level;

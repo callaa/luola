@@ -25,15 +25,17 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "defines.h"
+#ifdef HAVE_CONFIG_H
+#include "../config.h"
+#endif
+
 #include "fs.h"
-#include "stringutil.h"
+#include "parser.h"
 
 #if HAVE_LIBSDL_MIXER
-#include <SDL/SDL_mixer.h>
+#include "SDL/SDL_mixer.h"
 #else
 #define MIX_DEFAULT_FREQUENCY 0
-#define MIX_DEFAULT_CHANNELS 0
 #endif
 
 #include "startup.h"
@@ -43,77 +45,44 @@ StartupOptions luola_options;
 
 /* Set default values */
 void init_startup_options (void) {
-    char tmps[256], *line = NULL;
-    FILE *fp;
+    struct dllist *config;
+
     /* Built in values */
-    luola_options.fullscreen = FULLSCREEN;
-    luola_options.hidemouse = HIDEMOUSE;
-    luola_options.joystick = JOYSTICK;
+    luola_options.fullscreen = 0;
+    luola_options.hidemouse = 1;
+    luola_options.joystick = 1;
 #if HAVE_LIBSDL_MIXER
-    luola_options.sounds = SOUNDS;
+    luola_options.sounds = 1;
 #else
     luola_options.sounds = 0;
 #endif
     luola_options.audio_rate = MIX_DEFAULT_FREQUENCY;
-    luola_options.audio_channels = MIX_DEFAULT_CHANNELS;
     luola_options.audio_chunks = 256;
     luola_options.sfont = 0;
     luola_options.mbg_anim = 1;
     luola_options.videomode = VID_640;
 
     /* Load configuration file (if exists) */
-    fp = fopen (getfullpath (HOME_DIRECTORY, STARTUP_FILE), "r");
-    if (!fp)
-        return;                 /* No configuration file. We don't complain, just stick with the defaults */
-    for (; fgets (tmps, sizeof (tmps) - 1, fp); free (line)) {
-        line = strip_white_space (tmps);
-        if (line == NULL)
-            continue;
-        if (strcmp (line, "fullscreen") == 0)
-            luola_options.fullscreen = 1;
-        else if (strcmp (line, "window") == 0)
-            luola_options.fullscreen = 0;
-        else if (strcmp (line, "hidemouse") == 0)
-            luola_options.hidemouse = 1;
-        else if (strcmp (line, "showmouse") == 0)
-            luola_options.hidemouse = 0;
-        else if (strcmp (line, "pad") == 0)
-            luola_options.joystick = 1;
-        else if (strcmp (line, "nopad") == 0)
-            luola_options.joystick = 0;
-#if HAVE_LIBSDL_MIXER
-        else if (strcmp (line, "sounds") == 0)
-            luola_options.sounds = 1;
-        else if (strcmp (line, "nosounds") == 0)
-            luola_options.sounds = 0;
-#endif
-        else if (strcmp (line, "sfont") == 0)
-            luola_options.sfont = 1;
-        else if (strcmp (line, "ttf") == 0)
-            luola_options.sfont = 0;
-        else if (strcmp (line, "menu-animation") == 0)
-            luola_options.mbg_anim = 1;
-        else if (strcmp (line, "no-menu-animation") == 0)
-            luola_options.mbg_anim = 0;
-        else if (strcmp (line, "audiorate") == 0) {
-            fgets (tmps, sizeof (tmps) - 1, fp);
-            luola_options.audio_rate = atoi (tmps);
-        } else if (strcmp (line, "audiochannels") == 0) {
-            fgets (tmps, sizeof (tmps) - 1, fp);
-            luola_options.audio_channels = atoi (tmps);
-        } else if (strcmp (line, "audiochunks") == 0) {
-            fgets (tmps, sizeof (tmps) - 1, fp);
-            luola_options.audio_chunks = atoi (tmps);
-        } else if (strcmp (line, "videomode") == 0) {
-            fgets (tmps, sizeof (tmps) - 1, fp);
-            luola_options.videomode = atoi (tmps);
-            if(luola_options.videomode<VID_640)
-                luola_options.videomode=VID_640;
-            else if(luola_options.videomode>VID_1024)
-                luola_options.videomode=VID_1024;
-        }
+    config = read_config_file(getfullpath (HOME_DIRECTORY, "startup.cfg"),1);
+    if(config) {
+        struct ConfigBlock *block = config->data;
+        CfgPtrType types[9];
+        void *pointers[9];
+        char *keys[9];
+
+        keys[0] = "fullscreen"; types[0]=CFG_INT; pointers[0]=&luola_options.fullscreen;
+        keys[1] = "hidemouse";  types[1]=CFG_INT; pointers[1]=&luola_options.hidemouse;
+        keys[2] = "joystick";   types[2]=CFG_INT; pointers[2]=&luola_options.joystick;
+        keys[3] = "sounds";     types[3]=CFG_INT; pointers[3]=&luola_options.sounds;
+        keys[4] = "audiorate";  types[4]=CFG_INT; pointers[4]=&luola_options.audio_rate;
+        keys[5] = "audiochunks";types[5]=CFG_INT; pointers[5]=&luola_options.audio_chunks;
+        keys[6] = "sfont";      types[6]=CFG_INT; pointers[6]=&luola_options.sfont;
+        keys[7] = "mbg_anim";   types[7]=CFG_INT; pointers[7]=&luola_options.mbg_anim;
+        keys[8] = "videomode";  types[8]=CFG_INT; pointers[8]=&luola_options.videomode;
+        translate_config(block->values,sizeof(types)/sizeof(CfgPtrType),keys,types,pointers,0);
+
+        dllist_free(config,free_config_file);
     }
-    fclose (fp);
 }
 
 void print_help (void) {
@@ -134,13 +103,12 @@ void print_help (void) {
     printf ("  --menu-animation           Enable menu background animation\n");
     printf ("  --no-menu-animation        Disable menu background animation\n");
     printf ("  --audiorate <rate>         Set audio sampling frequency\n");
-    printf ("  --audiochannels <channels> Set audio channels (1 or 2)\n");
     printf ("  --audiochunks <chunks>     Set audio chunks\n");
     printf ("  --help                     Show this message\n");
     printf ("  --version                  Show version information\n\n");
 }
 
-/* Parse a command tmps argument */
+/* Parse a command argument */
 int parse_argument (int r, int argc, char **argv) {
     if (strcmp (argv[r], "--fullscreen") == 0)
         luola_options.fullscreen = 1;
@@ -176,14 +144,6 @@ int parse_argument (int r, int argc, char **argv) {
             printf ("You did not specify the audio rate\n");
             return 0;
         }
-    } else if (strcmp (argv[r], "--audiochannels") == 0) {
-        if (r + 1 < argc) {
-            r++;
-            luola_options.audio_channels = atoi (argv[r]);
-        } else {
-            printf ("You did not specify number of channels\n");
-            return 0;
-        }
     } else if (strcmp (argv[r], "--audiochunks") == 0) {
         if (r + 1 < argc) {
             r++;
@@ -216,42 +176,23 @@ int parse_argument (int r, int argc, char **argv) {
     return r;
 }
 
-char save_startup_config (void) {
+int save_startup_config (void) {
     FILE *fp;
     const char *filename;
-    filename = getfullpath (HOME_DIRECTORY, STARTUP_FILE);
+    filename = getfullpath (HOME_DIRECTORY, "startup.cfg");
     fp = fopen (filename, "w");
     if (!fp)
         return 1;
     /* Save data */
-    if (luola_options.fullscreen)
-        fprintf (fp, "fullscreen\n");
-    else
-        fprintf (fp, "window\n");
-    if (luola_options.hidemouse)
-        fprintf (fp, "hidemouse\n");
-    else
-        fprintf (fp, "showmouse\n");
-    if (luola_options.joystick)
-        fprintf (fp, "pad\n");
-    else
-        fprintf (fp, "nopad\n");
-    if (luola_options.sounds)
-        fprintf (fp, "sounds\n");
-    else
-        fprintf (fp, "nosounds\n");
-    fprintf (fp, "audiorate\n%d\n", luola_options.audio_rate);
-    fprintf (fp, "audiochannels\n%d\n", luola_options.audio_channels);
-    fprintf (fp, "audiochunks\n%d\n", luola_options.audio_chunks);
-    if (luola_options.sfont)
-        fprintf (fp, "sfont\n");
-    else
-        fprintf (fp, "ttf\n");
-    if (luola_options.mbg_anim)
-        fprintf (fp, "menu-animation\n");
-    else
-        fprintf (fp, "no-menu-animation\n");
-    fprintf(fp, "videomode\n%d\n",luola_options.videomode);
+    fprintf(fp,"fullscreen=%d\n",luola_options.fullscreen);
+    fprintf(fp,"hidemouse=%d\n",luola_options.hidemouse);
+    fprintf(fp,"joystick=%d\n",luola_options.joystick);
+    fprintf(fp,"sounds=%d\n",luola_options.sounds);
+    fprintf(fp, "audiorate=%d\n",luola_options.audio_rate);
+    fprintf(fp, "audiochunks=%d\n",luola_options.audio_chunks);
+    fprintf(fp, "sfont=%d\n",luola_options.sfont);
+    fprintf(fp, "mbg_anim=%d\n",luola_options.mbg_anim);
+    fprintf(fp, "videomode=%d\n",luola_options.videomode);
     /* Done. */
     fclose (fp);
     return 0;

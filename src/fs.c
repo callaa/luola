@@ -42,15 +42,12 @@
 
 /* Paths */
 #ifndef WIN32
-#define GFX_PATH "/gfx/"
 #define LEVEL_PATH "/levels/"
-#define SND_PATH "/sounds/"
 #define FONT_PATH "/font/"
 #else
 #undef PACKAGE_DATA_DIR
-#define GFX_PATH "data/gfx/"
+#define DATA_PATH "data/"
 #define LEVEL_PATH "data/levels/"
-#define SND_PATH "data/sounds/"
 #define FONT_PATH "data/font/"
 #endif
 
@@ -66,23 +63,22 @@ const char *getfullpath (DataDir dir,const char *filename)
     datadirlen = strlen (PACKAGE_DATA_DIR);
 #endif
     switch (dir) {
-    case GFX_DIRECTORY:
-        if ((strlen (filename) + datadirlen + strlen (GFX_PATH) + 1) >
+    case DATA_DIRECTORY:
+        if ((strlen (filename) + datadirlen + 1) >
             sizeof (fullpath)) {
-            printf ("Error ! full pathname too long");
+            fprintf (stderr,"Error! full pathname too long");
             return NULL;
         }
 #ifdef PACKAGE_DATA_DIR
-        strcpy (fullpath, PACKAGE_DATA_DIR);
-        strcat (fullpath, GFX_PATH);
+        strcpy (fullpath, PACKAGE_DATA_DIR "/");
 #else
-        strcpy (fullpath, GFX_PATH);
+        strcpy (fullpath, DATA_PATH);
 #endif
         break;
     case LEVEL_DIRECTORY:
         if ((strlen (filename) + datadirlen + strlen (LEVEL_PATH) + 1) >
             sizeof (fullpath)) {
-            printf ("Error ! full pathname too long");
+            fprintf (stderr,"Error! full pathname too long");
             return NULL;
         }
 #ifdef PACKAGE_DATA_DIR
@@ -95,7 +91,7 @@ const char *getfullpath (DataDir dir,const char *filename)
     case FONT_DIRECTORY:
         if ((strlen (filename) + datadirlen + strlen (LEVEL_PATH) + 1) >
             sizeof (fullpath)) {
-            printf ("Error ! full pathname too long");
+            fprintf (stderr,"Error! full pathname too long");
             return NULL;
         }
 #ifdef PACKAGE_DATA_DIR
@@ -131,29 +127,26 @@ const char *getfullpath (DataDir dir,const char *filename)
                 return NULL;
             }
             if (dir == USERLEVEL_DIRECTORY)
-                sprintf (fullpath, "%s/.%s/%s", home_path, HOME_PATH,
+                sprintf (fullpath, "%s/.%s%s", home_path, HOME_PATH,
                          levelpath);
             else
                 sprintf (fullpath, "%s/.%s", home_path, HOME_PATH);
             break;
 #endif
         }
-    case SND_DIRECTORY:
-        if ((strlen (filename) + datadirlen + strlen (SND_PATH) + 1) >
-            sizeof (fullpath)) {
-            printf ("Error ! full pathname too long");
-            return NULL;
-        }
-#ifdef PACKAGE_DATA_DIR
-        strcpy (fullpath, PACKAGE_DATA_DIR);
-        strcat (fullpath, SND_PATH);
-#else
-        strcpy (fullpath, SND_PATH);
-#endif
-        break;
-
     }
     strcat (fullpath, filename);
+    return fullpath;
+}
+
+/* Return file2 with file1's path */
+const char *samepath(const char *file1, const char *file2)
+{
+    static char fullpath[PATH_MAX];
+    char *ptr;
+    ptr = strrchr(file1,'/')+1;
+    strncpy(fullpath,file1,ptr-file1);
+    strcpy(fullpath+(ptr-file1),file2);
     return fullpath;
 }
 
@@ -169,8 +162,8 @@ void check_homedir (void)
         path = getfullpath (USERLEVEL_DIRECTORY, "");
         dir = opendir (path);
         if (!dir) {
-            printf ("User level subdirectory doesn't exist. Creating...\n");
 #ifndef WIN32
+            printf ("User level subdirectory doesn't exist. Creating...\n");
             if (mkdir (path, 0777)) {
                 perror (path);
             }
@@ -180,8 +173,8 @@ void check_homedir (void)
         }
         return;
     }
-    printf ("Luola home directory \"%s\" doesn't exist. Creating...\n", path);
 #ifndef WIN32
+    printf ("Luola home directory \"%s\" doesn't exist. Creating...\n", path);
     if (mkdir (path, 0777)) {
         perror (path);
         exit (1);
@@ -194,23 +187,21 @@ void check_homedir (void)
 }
 
 /* Load an imagefile */
-SDL_Surface *load_image (char dir, const char *filename, char allownull,
-                         signed char enableAlpha)
+SDL_Surface *load_image (const char *filename, int allownull,
+                         Transparency transparency)
 {
-    SDL_RWops *rw;
-    const char *fullpath;
     SDL_Surface *image;
-    fullpath = getfullpath (dir, filename);
-    rw = SDL_RWFromFile (fullpath, "rb");
+    SDL_RWops *rw;
+    rw = SDL_RWFromFile (filename, "rb");
     if (rw == NULL) {
         if (allownull == 0) {
-            printf ("Error ! Unable to load image \"%s\"\n%s:\n", fullpath,
-                    SDL_GetError ());
+            fprintf (stderr,"Unable to open image \"%s\"\n%s:\n",
+                    filename, SDL_GetError ());
             exit (1);
         }
         return NULL;
     }
-    image = load_image_rw (rw, allownull, enableAlpha);
+    image = load_image_rw (rw, allownull, transparency);
     SDL_FreeRW (rw);
     return image;
 }
@@ -218,7 +209,7 @@ SDL_Surface *load_image (char dir, const char *filename, char allownull,
 /* This function loads an image not supported by SDL_Image */
 /* Returns NULL if Luola doesn't recognize the file type */
 /* Currently, only LMAP is supported */
-SDL_Surface *load_luola_image_rw (SDL_RWops * rw)
+static SDL_Surface *load_luola_image_rw (SDL_RWops * rw)
 {
     SDL_Surface *image = NULL;
     char magic[5];
@@ -234,23 +225,26 @@ SDL_Surface *load_luola_image_rw (SDL_RWops * rw)
 }
 
 /* Load an image from SDL_RWops */
-SDL_Surface *load_image_rw (SDL_RWops * rw, char allownull,
-                            signed char enableAlpha)
+SDL_Surface *load_image_rw (SDL_RWops * rw, int allownull,
+                            Transparency transparency)
 {
     SDL_Surface *tmp, *conv = NULL;
+
     /* Check if Luola can load the image itself (LCMAP ?) */
     tmp = load_luola_image_rw (rw);
-    if (tmp == NULL)            /* If not, then use SDL_image */
+    if (tmp == NULL) /* If not, then use SDL_image */
         tmp = IMG_Load_RW (rw, 0);
     if (tmp == NULL) {
         if (allownull == 0) {
-            printf ("Error! Unable to load image from SDL_RWops\n%s\n",
+            fprintf (stderr,"Unable to load image from SDL_RWops\n%s\n",
                     SDL_GetError ());
             exit (1);
         }
         return NULL;
     }
-    if (enableAlpha == 2) {     /* Enable colorkey */
+
+    /* Set transparency options */
+    if (transparency == T_COLORKEY) {
         Uint32 ck;
         switch (tmp->format->BytesPerPixel) {
         case 1:
@@ -275,16 +269,18 @@ SDL_Surface *load_image_rw (SDL_RWops * rw, char allownull,
         }
         SDL_SetColorKey (tmp, SDL_SRCCOLORKEY | SDL_RLEACCEL, ck);
     }
-    if (enableAlpha == 1)
+    if (transparency == T_ALPHA)
         conv = SDL_DisplayFormatAlpha (tmp);
-    else if (enableAlpha >= 0)
+    else if(transparency != T_NONE)
         conv = SDL_DisplayFormat (tmp);
+
     if (conv == NULL)
         conv = tmp;
     else
         SDL_FreeSurface (tmp);
+
     if (tmp == NULL) {
-        printf ("Error ! Could not convert image to screen format ! %s\n",
+        fprintf (stderr,"Could not convert image to screen format! %s\n",
                 SDL_GetError ());
         exit (1);
     }
@@ -292,9 +288,9 @@ SDL_Surface *load_image_rw (SDL_RWops * rw, char allownull,
 }
 
 /* This function loads an list of images from a Luola Datafile */
-SDL_Surface **load_image_array (LDAT * datafile, char allownull,
-                                char enableAlpha, char *id, int first,
-                                int last)
+SDL_Surface **load_image_array (LDAT * datafile, int allownull,
+                                Transparency transparency, const char *id,
+                                int first, int last)
 {
     SDL_Surface **surfaces;
     SDL_RWops *data;
@@ -302,14 +298,15 @@ SDL_Surface **load_image_array (LDAT * datafile, char allownull,
     surfaces = malloc (sizeof (SDL_Surface *) * (last - first + 1));
     for (pos = 0; pos <= last - first; pos++) {
         data = ldat_get_item (datafile, id, pos);
-        surfaces[pos] = load_image_rw (data, allownull, enableAlpha);
+        surfaces[pos] = load_image_rw (data, allownull, transparency);
     }
     return surfaces;
 }
 
 /* This is a convenience function to load an image from a datafile */
-SDL_Surface *load_image_ldat (LDAT * datafile, char allownull,
-                              char enableAlpha, char *id, int index)
+SDL_Surface *load_image_ldat (LDAT * datafile, int allownull,
+                              Transparency transparency, const char *id,
+                              int index)
 {
     SDL_RWops *data;
     data = ldat_get_item (datafile, id, index);
@@ -318,9 +315,10 @@ SDL_Surface *load_image_ldat (LDAT * datafile, char allownull,
             return NULL;
         exit (1);
     }
-    return load_image_rw (data, allownull, enableAlpha);
+    return load_image_rw (data, allownull, transparency);
 }
 
+/* Take a screenshot and save it in the home directory */
 void screenshot (void)
 {
     const char *filename;
@@ -328,6 +326,7 @@ void screenshot (void)
     sprintf (tmp, "luola_%d.bmp", SDL_GetTicks ());
     filename = getfullpath (HOME_DIRECTORY, tmp);
     if (SDL_SaveBMP (screen, filename)) {
-        printf ("Error saving screenshot to %s\n", filename);
+        fprintf (stderr,"Error saving screenshot to %s: %s\n", filename,
+                SDL_GetError());
     }
 }

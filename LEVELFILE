@@ -11,17 +11,17 @@ Table of contents
 1. Introduction
 --------------------------------------------------------------------------------
 
-A Luola level is made up of three parts:
+A Luola level is made up of fourh parts:
     1) The level artwork
     2) The collisionmap image
     3) Level settings file
+	4) Level thumbnail
 
 The level settings file is the file that luola searches for during startup.
 It must have ".lev" extension for Luola to recognize it. The settings file
-contains paths to artwork and collisionmaps.
+contains paths to artwork, collisionmap and the level thumbnail.
 
-These three parts can be seperate files, or all packed into a single one.
-When packed into a compact levelfile, the filename must end in ".compact.lev".
+These four parts can be seperate files, or all packed into a single one.
 
 The level artwork file can also be used as the collisionmap, provided that
 it is palette based and the colours are arranged properly. You can manually
@@ -33,6 +33,9 @@ The collisionmap specifies different terrain types such as free space, ground,
 water, bases, etc. The image used as a collision map has following limitations:
   1) It must have exactly the same dimensions as the level artwork
   2) It must have an indexed palette
+
+The thumbnail is displayed in the level selection screen. The only limitation
+is that its height must be exactly 120 pixels.
 
 2. Collision map
 --------------------------------------------------------------------------------
@@ -73,7 +76,7 @@ Terrain explanations:
 	when destroyed. Artwork fill be filled with the colour of water
 
  4. Water
- 	Like free space, except more viscous. This color is used to when creating
+ 	Like free space, except more viscous. This color is used when creating
 	new water in the game, so it should be the same as in level artwork.
 
  5. Base
@@ -139,19 +142,17 @@ A line starting with '#' is a comment line.
 The file is divided into following blocks:
 [main]		- This block sets general things like the name of the level and filenames.
 [override]	- Level settings can be overridden here
-[objects]	- Manually placed level objects
+[object]	- A manually placed object
 [palette]	- Custom palette for luola 8 bit level format
-[icon]		- Icon for the level
 
 All unrecognized blocks are skipped.
-A block must end with [end]
-All subblocks must end with [endsub]
 
 Main block
 ----------
 
 collisionmap = *	- Collisionmap filename
 artwork = *			- Artwork filename
+thumbnail = *		- Thumbnail filename
 name = *			- Name of the level (appears in the level selection box)
 aspect = ?.?		- Aspect ratio
 zoom = ?.?			- Level zoom
@@ -174,11 +175,10 @@ fish = ?
 birds = ?
 bats = ?
 
-Objects block
+Object block
 -------------
-This block contains sub blocks that start with [object] and end with [endsub]
+You can have multiple object blocks.
 
-Object sub block:
 type = {turret,jumpgate,cow,fish,bird,bat,ship}	- Type of the object
 x = ?											- X and Y coordinates.
 y = ?
@@ -226,29 +226,46 @@ Example:
 11-20 = ground
 21 = base
 
-Level icon
-----------
-
-The level icon is just an XPM image you put in the level configuration file.
-Remember that the XPM image's first line must be "/* XPM */", otherwise
-SDL_image won't recognize it.
-
 4. Luola compact level file
 ------------------------------------------------------------------------------
 
-The compact levelfile format uses the Luola datafile to
-store its files.
-The compact level files must end in ".compact.lev"
+The compact level format uses the luola datafile format to store levels.
+Like normal levels, compact level filenames must end in ".lev"
 Files are stored under the following IDs:
 
 "ARTWORK"	The level artwork file
 "COLLISION"	The level collisionmap file
-"SETTINGS"	The level settings file
-"SOURCE"	Level settings file in ASCII format (optional)
+"THUMBNAIL"	The level thumbnail file
+"CONFIG"	Level settings file
+"SOURCE"	Level settings file. Deprecated, use CONFIG instead.
 
 The settings file must always be present.
-Should the artwork entry be excluded, the artwork is loaded from the collisionmap.
-Note that the collisionmap must be present!
+Should the artwork entry be excluded, the artwork is loaded from
+the collisionmap. Note that the collisionmap must be present!
+
+Multiple levels can be stored in a single compact level file, by using
+a different index for each level.
+
+To create compact level files, use the bundled ldat tool.
+An example .pack file for ldat:
+ldat: mylevel.lev
+0       ARTWORK         mylevel.png
+0       COLLISION       mylevelcmap.png
+0       CONFIG          mylevelconf.lev
+0       THUMBNAIL       mylevel.thumb.png
+1       ARTWORK         mysecondlevel.png
+1       COLLISION       mysecondlevelcmap.png
+1       CONFIG          mysecondlevelconf.lev
+1       THUMBNAIL       mysecondlevel.thumb.png
+
+To extract the files from a compact level file, use the provided ldat tool.
+Eg.
+ldat -x twilight.compact.lev ARTWORK
+will extract the level artwork from Twilight Zone level.
+Note that since LDATs don't retain original filenames, the file will be
+named "ARTWORK". Extract the CONFIG file to see the original filenames.
+Collisionmaps might be in LCMAP format. You can use the provided lcmap tool
+to convert it into a BMP.
 
 5. Using foreign levels
 ------------------------------------------------------------------------------

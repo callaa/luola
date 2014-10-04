@@ -30,6 +30,13 @@
 #include "../config.h"
 #endif
 
+/* Player input device */
+struct Controller {
+    SDLKey keys[6];
+    SDL_Joystick *device;
+    int number;             /* 0=keyboard, rest are joystick number+1 */
+};
+
 /* The screen */
 extern SDL_Surface *screen;
 
@@ -37,52 +44,89 @@ extern SDL_Surface *screen;
 extern Uint32 col_black;
 extern Uint32 col_gray, col_grenade;
 extern Uint32 col_snow;
-extern Uint32 col_clay, col_clay2;      /* The secod clay colour is underwater clay */
+extern Uint32 col_clay, col_clay_uw;
 extern Uint32 col_default;
 extern Uint32 col_yellow;
 extern Uint32 col_red;
 extern Uint32 col_green;
 extern Uint32 col_blue;
+extern Uint32 col_cyan;
 extern Uint32 col_white;
 extern Uint32 col_transculent;
 extern Uint32 col_rope;
 extern Uint32 col_plrs[4];
 extern Uint32 col_pause_backg;
 
-/* Initialize SDL library */
+/* Initialize video and audio */
 extern void init_sdl (void);
 
 /* Initialize screen */
 extern void init_video (void);
 
-/* Wait for enter */
+/* Wait for enter or joypad button */
 extern void wait_for_enter(void);
+
+/* Open player joypads */
+extern void open_joypads();
+
+/* Close player joypads */
+extern void close_joypads();
 
 /* Toggle between fullscreen mode */
 extern void toggle_fullscreen(void);
 
-/* Graphics */
+/* Map color to RGBA value in current pixel format. Generates a */
+/* SDL_gfx compatible value if SDL_gfx is used. */
 extern Uint32 map_rgba(Uint8 r,Uint8 g,Uint8 b,Uint8 a);
+
+/* Draw a box outline */
 extern void draw_box (int x, int y, int w, int h, int width, Uint32 color);
+
+/* Draw a filled box. If SDL_gfx is available, supports transparency */
 extern void fill_box (SDL_Surface *surface,int x ,int y,int w,int h,Uint32 color);
+
+/* Copy raw pixels from one surface to another */
 extern void pixelcopy (Uint32 * srcpix, Uint32 * pixels, int w, int h,
                        int srcpitch, int pitch);
+
+/* Flip surface upside down. A new surface is returned. */
 extern SDL_Surface *flip_surface (SDL_Surface * original);
+
+/* Make a deep copy of a surface */
 extern SDL_Surface *copy_surface (SDL_Surface * original);
+
+/* Make a new surface that is like the one given. */
+/* If w or h is 0, the new surface will be the same size as likethis */
+extern SDL_Surface *make_surface(SDL_Surface * likethis,int w,int h);
+
+/* Return the intersection of two rectangles */
 extern SDL_Rect cliprect (int x1, int y1, int w1, int h1, int x2, int y2,
                           int w2, int h2);
+
+/* Return a line segment inside a rectangle */
 extern char clip_line (int *x1, int *y1, int *x2, int *y2, int left, int top,
                        int right, int bottom);
+
+/* Multiply surface color values */
 extern void recolor (SDL_Surface * surface, float red, float green,
                      float blue, float alpha);
 
+/* Get a single pixel from a surface */
 extern Uint32 getpixel (SDL_Surface * surface, int x, int y);
 
+/* Resize a surface. New surface is returned */
 extern SDL_Surface *zoom_surface (SDL_Surface *original, float aspect,float zoom);
 
+/* Display an error screen */
+extern void error_screen(const char *title, const char *exitsmg,
+        const char *message[], int lines);
+
 #ifndef HAVE_LIBSDL_GFX
+/* Put a single pixel on screen */
 extern inline void putpixel (SDL_Surface * surface, int x, int y,
                              Uint32 color);
+
+/* Draw a line on screen */
 extern void draw_line (SDL_Surface * screen, int x1, int y1, int x2, int y2,
                        Uint32 pixel);
 #else
@@ -93,6 +137,6 @@ extern void draw_line (SDL_Surface * screen, int x1, int y1, int x2, int y2,
 
 /* Translate joystick events to keyboard events */
 extern void joystick_button (SDL_JoyButtonEvent * btn);
-extern void joystick_motion (SDL_JoyAxisEvent * axis, char plrmode);
+extern void joystick_motion (SDL_JoyAxisEvent * axis, int plrmode);
 
 #endif

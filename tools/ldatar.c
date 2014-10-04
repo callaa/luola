@@ -1,6 +1,6 @@
 /*
  * LDAT - Luola Datafile format archiver
- * Copyright (C) 2002 Calle Laakkonen
+ * Copyright (C) 2002-2005 Calle Laakkonen
  *
  * File        : ldatar.c
  * Description : A program to manipulate LDAT archives
@@ -21,110 +21,167 @@
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 */
 
-#include <string.h>
+#include <stdlib.h>
+#include <getopt.h>
 #include <stdio.h>
 
 #include "ldat.h"
 #include "archive.h"
 
-/* Print help */
-static void print_help(void);
+typedef enum {MODE_UNSET,LIST,PACK,EXTRACT} Mode;
+static Mode ldat_mode = MODE_UNSET;
+static int verbose = 0, pack_index = 1;
 
-/*** MAIN ***/
-int main(int argc, char *argv[]) {
-  LDAT *ldatfile=NULL;
-  Filename *files=NULL;
-  int r,verbose=0,useindex=0,noindex=0;
-  char *outfile;
-  enum {ArchiveFoo,ArchiveList,ArchivePack,ArchiveExtract} archive_mode=ArchiveFoo;
-  /* Parse command line arguments */
-  if(argc==1) {
-    print_help();
+/* Print out list of files in LDAT archive */
+static int list_ldat(const char *filename) {
+    LDAT *ldat = ldat_open_file(filename);
+    if(!ldat) return 1;
+
+    print_ldat_catalog(ldat, verbose);
+
+    ldat_free(ldat);
     return 0;
-  }
-  for(r=1;r<argc;r++) {
-    if(strcmp(argv[r],"--help")==0) { print_help(); return 0; }
-    if(strcmp(argv[r],"-l")==0 || strcmp(argv[r],"--list")==0) archive_mode=ArchiveList;
-    else if(strcmp(argv[r],"-p")==0 || strcmp(argv[r],"--pack")==0) archive_mode=ArchivePack;
-    else if(strcmp(argv[r],"-x")==0 || strcmp(argv[r],"--extract")==0) archive_mode=ArchiveExtract;
-    else if(strcmp(argv[r],"-v")==0 || strcmp(argv[r],"--verbose")==0) verbose=1;
-    else if(strcmp(argv[r],"-i")==0 || strcmp(argv[r],"--index")==0) useindex=1;
-    else if(strcmp(argv[r],"--noindex")==0) noindex=1;
-    else { /* No such argument, probably a filename */
-      Filename *newfile;
-      newfile=malloc(sizeof(Filename));
-      newfile->filename=argv[r];
-      newfile->prev=files;
-      newfile->next=NULL;
-      if(files) files->next=newfile;
-      files=newfile;
+}
+
+/* Make a new LDAT archive */
+static int pack_ldat(const char *filename,int filec, char *filev[]) {
+    const char *outputfile;
+    LDAT *ldat = ldat_create();
+
+    if(filec==0) {
+        /* No list of files specified, assume filename is a .pack file */
+        outputfile = pack_ldat_index(ldat,filename, pack_index,verbose);
+        if(outputfile==NULL)
+            return 1;
+    } else {
+        /* Pack listed files */
+        struct dllist *files=NULL;
+        int r;
+        for(r=0;r<filec;r++) {
+            struct Filename *newfile = make_file(filev[r],filev[r],0);
+            if(newfile == NULL)
+                return 1;
+            if (files)
+                dllist_append(files, newfile);
+            else
+                files = dllist_append(NULL, newfile);
+        }
+        pack_ldat_files(ldat,files,verbose);
+        outputfile = filename;
     }
-  }
-  /* Done parsing command line arguments */
-  /* Rewind filename list */
-  if(files==NULL) {
-    printf("No archive selected !\n");
-    return 1;
-  }
-  while(files->prev) files=files->prev;
-  /* Archive actions */
-  switch(archive_mode) {
-    case ArchiveFoo:	/* No action selected */
-      printf("You did not select the archive action !\n");
-      return 1;
-    case ArchiveList:	/* List contents of an archive */
-      ldatfile=ldat_open_file(files->filename);
-      if(verbose) printf("Name                          Index\tSize\tOffset\n");
-      print_ldat_catalog(ldatfile,verbose);
-      ldat_free(ldatfile);
-      break;
-    case ArchivePack: /* Pack files into an archive */
-      if(files->next==NULL && useindex==0) {
-        printf("No files selected !\n");
-	return 1;
-      }
-      ldatfile=ldat_create();
-      if(useindex) {
-        outfile=pack_ldat_index(ldatfile,files->filename,!noindex);
-	if(outfile==NULL) return 1;
-	printf("Creating file \"%s\"\n",outfile);
-      } else {
-        outfile=files->filename;
-        pack_ldat_files(ldatfile,files->next);
-      }
-      if(ldat_save_file(ldatfile,outfile)) {
-        printf("Error occured while saving !\n");
-	return 1;
-      }
-      ldat_free(ldatfile);
-      break;
-    case ArchiveExtract:	/* Extract files from an archive */
-      if(files->next==NULL && useindex==0) {
-        printf("No files selected !\n");
-	return 1;
-      }
-      if(useindex) {
-        if(unpack_ldat_index(files->filename)) return 1;
-      } else {
-        ldatfile=ldat_open_file(files->filename);
-	if(!ldatfile) return 1;
-        unpack_ldat_files(ldatfile,files->next);
-	ldat_free(ldatfile);
-      }
-      break;
-    default: break;
-  }
-
-  return 0;
+    if(verbose)
+        printf("Saving \"%s\"...\n",outputfile);
+    if(ldat_save_file(ldat, outputfile)) {
+        fputs("Error occured while saving",stderr);
+        ldat_free(ldat);
+        return 1;
+    }
+    if(verbose)
+        printf("\tOk.\n");
+    ldat_free(ldat);
+    return 0;
 }
 
-static void print_help(void) {
-  printf("Usage: ldat <options> <ldat file> [filename1...]\nOptions:\n");
-  printf("\t--help\t\t\tShow this help\n");
-  printf("\t-l, --list\t\tList the contents of an archive\n");
-  printf("\t-p, --pack\t\tPack files into an archive\n");
-  printf("\t-x, --extract\t\tExtract files from an archive\n");
-  printf("\t--index\t\t\tUse an index file to generate LDAT\n");
-  printf("\t--noindex\t\t\tDo not automatically insert index file\n");
-  printf("\t-v, --verbose\t\tVerbose mode\n");
+/* Extract files from an LDAT archive */
+static int extract_ldat(const char *filename,int filec, char *filev[]) {
+    int rval=0;
+    if(filec==0) {
+        /* No list of files specified, assume filename is a .pack file */
+        if(unpack_ldat_index(filename, verbose))
+            rval=1;
+    } else {
+        /* Unpack listed files */
+        LDAT *ldat = ldat_open_file(filename);
+        if(ldat==NULL) {
+            rval=1;
+        } else {
+            struct dllist *files=NULL;
+            int r;
+            for(r=0;r<filec;r++) {
+                struct Filename file;
+                strcpy(file.filename,filev[r]);
+                strcpy(file.id,filev[r]);
+                file.index = 0;
+                if(r+1<filec) {
+                    char *endptr=NULL;
+                    int tmpi = strtol(filev[r+1],&endptr,10);
+                    if(endptr==NULL) {
+                        file.index=tmpi;
+                        r++;
+                    }
+                }
+                if(unpack_ldat_file(ldat,&file,verbose)) {
+                    rval=1;
+                    break;
+                }
+            }
+            ldat_free(ldat);
+        }
+    }
+
+    return rval;
 }
+
+static void set_mode(Mode mode) {
+    if(ldat_mode!=MODE_UNSET) {
+        fputs("Use only one of -l, -p or -x\n",stderr);
+        exit(1);
+    }
+    ldat_mode = mode;
+}
+
+int main(int argc, char *argv[]) {
+    const char *ldatfile;
+    int c=0,rval;
+    if(argc==1) {
+        puts("Luola Datafile tool");
+        puts("Usage: ldat <options> [files...]\nOptions:");
+        puts("\t-h, --help                Show this help");
+        puts("\t-l, --list <ldat>         List the contents of an archive");
+        puts("\t-p, --pack <ldat/pack>    Pack files into an archive");
+        puts("\t-x, --extract <ldat/pack> Extract files from an archive");
+        puts("\t-I, --noindex             Do not automatically insert index file");
+        puts("\t-v, --verbose             Print extra information");
+        exit(0);
+    }
+
+    while(c!=-1) {
+        static struct option options[] = {
+            {"list",    required_argument,  0, 'l'},
+            {"pack",    required_argument,  0, 'p'},
+            {"extract", required_argument,  0, 'x'},
+            {"index",   no_argument,        0, 'i'},
+            {"noindex",no_argument,        0, 'I'},
+            {0,0,0,0}};
+        int option_index = 0;
+
+        c = getopt_long(argc,argv,"l:p:x:Iv", options, &option_index);
+        switch(c) {
+            case 'l': set_mode(LIST); ldatfile=optarg; break;
+            case 'p': set_mode(PACK); ldatfile=optarg; break;
+            case 'x': set_mode(EXTRACT); ldatfile=optarg; break;
+            case 'I': pack_index = 0; break;
+            case 'v': verbose = 1; break;
+            case '?': exit(1);
+        }
+    }
+
+    switch(ldat_mode) {
+        case MODE_UNSET:
+            fputs("No action selected\n",stderr);
+            rval=1;
+            break;
+        case LIST:
+            rval=list_ldat(ldatfile);
+            break;
+        case PACK:
+            rval=pack_ldat(ldatfile,argc-optind,argv+optind);
+            break;
+        case EXTRACT:
+            rval=extract_ldat(ldatfile,argc-optind,argv+optind);
+            break;
+    }
+
+    return rval;
+}
+

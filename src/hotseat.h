@@ -25,7 +25,7 @@
 #define HOTSEAT_H
 
 /* Initialization */
-extern int init_hotseat (void);
+extern void init_hotseat (void);
 
 /* Start a normal hotseat game */
 extern void hotseat_game (void);

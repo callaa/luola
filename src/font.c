@@ -24,10 +24,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "defines.h"
 #include "console.h"
 #include "fs.h"
-#include "stringutil.h"
 #include "font.h"
 #include "startup.h"
 #include "parser.h"
@@ -144,13 +142,12 @@ int init_font (void) {
            if there isn't one there, check the font directory. */
         const char *fcfg;
         const char *filename;
-        fcfg = getfullpath (HOME_DIRECTORY, FONT_CFG_FILE);
+        fcfg = getfullpath (HOME_DIRECTORY, "fonts.cfg");
         if (load_font_cfg (fcfg)) {
-            fcfg = getfullpath (FONT_DIRECTORY, FONT_CFG_FILE);
+            fcfg = getfullpath (FONT_DIRECTORY, "fonts.cfg");
             if (load_font_cfg (fcfg)) {
-                printf(
-                    "Error: Couldn't load configuration file \"%s\"\n",
-                    FONT_CFG_FILE);
+                fprintf(stderr,
+                    "Error: Couldn't load font configuration file\n");
                 return 1;
             }
         }
@@ -187,8 +184,10 @@ int init_font (void) {
 #endif
     /* Initialize SFont */
     if (use_sfont) {
-        sfont_big=SFont_InitFont(load_image(FONT_DIRECTORY,"font1.png", 0,1));
-        sfont_small=SFont_InitFont(load_image(FONT_DIRECTORY,"font2.png", 0,1));
+        sfont_big=SFont_InitFont(load_image(
+                    getfullpath(FONT_DIRECTORY,"font1.png"), 0,T_ALPHA));
+        sfont_small=SFont_InitFont(load_image(
+                    getfullpath(FONT_DIRECTORY,"font2.png"), 0,T_ALPHA));
         MENU_SPACING = sfont_big->Surface->h;
     }
     /* Initialize font colors */
@@ -231,15 +230,8 @@ void putstring_direct (SDL_Surface * surface, FontSize size, int x, int y,
         if (color.r == 255 && color.g == 255 && color.b == 255) {
             SFont_Write (surface, font.sfont, x, y, text,0);
         } else {
-            fontsurface =
-                SDL_CreateRGBSurface (font.sfont->Surface->flags,
-                                  SFont_TextWidth(font.sfont, text),
-                                  font.sfont->Surface->h,
-                                  font.sfont->Surface->format->BitsPerPixel,
-                                  font.sfont->Surface->format->Rmask,
-                                  font.sfont->Surface->format->Gmask,
-                                  font.sfont->Surface->format->Bmask,
-                                  font.sfont->Surface->format->Amask);
+            fontsurface = make_surface(font.sfont->Surface,
+                     SFont_TextWidth(font.sfont, text), font.sfont->Surface->h);
             SFont_Write (fontsurface, font.sfont, 0, 0, text,1);
             recolor (fontsurface, color.r / 255.0, color.g / 255.0,
                      color.b / 255.0, 1.0);
@@ -254,8 +246,8 @@ void putstring_direct (SDL_Surface * surface, FontSize size, int x, int y,
     }
 }
 
-/* A convenience wrapper for putstring_direct		*/
-/* Centers the string horizontaly			*/
+/* A convenience wrapper for putstring_direct */
+/* Centers the string horizontaly */
 void centered_string (SDL_Surface * surface, FontSize size, int y,
                       const char *text, SDL_Color color)
 {
@@ -281,15 +273,8 @@ SDL_Surface *renderstring (FontSize size, const char *text, SDL_Color color)
     FontInfo font;
     set_proper_font (&font, size);
     if (use_sfont) {            /* SFont version */
-        fontsurface =
-            SDL_CreateRGBSurface (font.sfont->Surface->flags,
-                                  SFont_TextWidth(font.sfont, text),
-                                  font.sfont->Surface->h,
-                                  font.sfont->Surface->format->BitsPerPixel,
-                                  font.sfont->Surface->format->Rmask,
-                                  font.sfont->Surface->format->Gmask,
-                                  font.sfont->Surface->format->Bmask,
-                                  font.sfont->Surface->format->Amask);
+        fontsurface = make_surface(font.sfont->Surface,
+                     SFont_TextWidth(font.sfont, text), font.sfont->Surface->h);
         SFont_Write(fontsurface, font.sfont, 0, 0, text,1);
         if (color.r != 255 || color.g != 255 || color.b != 255) {
             recolor (fontsurface, color.r / 255.0, color.g / 255.0,
@@ -301,7 +286,7 @@ SDL_Surface *renderstring (FontSize size, const char *text, SDL_Color color)
     }
 }
 
-/* Get the height of the font                           */
+/* Get the height of the font */
 int font_height (FontSize size)
 {
     FontInfo font;

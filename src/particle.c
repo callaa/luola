@@ -26,7 +26,6 @@
 #include <string.h>
 #include "SDL.h"
 
-#include "defines.h"
 #include "console.h"
 #include "level.h"
 #include "player.h"
@@ -34,15 +33,10 @@
 #include "list.h"
 
 /* Internally used globals */
-static struct dllist *particles;
+static struct dllist *particles=NULL;
 
 /* Internally used function prototypes */
 static inline void draw_particle (Particle * part);
-
-/* Initialize */
-void init_particles (void) {
-    particles = NULL;
-}
 
 /* Deinitialize */
 void clear_particles (void) {
@@ -62,13 +56,9 @@ Particle *make_particle (int x, int y, int age)
     newpart->color[1] = 200;
     newpart->color[2] = 255;
     newpart->color[3] = 255;
-    newpart->targ_color[0] = 0;
-    newpart->targ_color[1] = 0;
-    newpart->targ_color[2] = 0;
-    newpart->targ_color[3] = 0;
     newpart->vector.x=0;
     newpart->vector.y=0;
-    calc_color_deltas (newpart);
+    calc_color_deltas (newpart,0,0,0,0);
     particles = dllist_prepend(particles,newpart);
     return newpart;
 }
@@ -120,10 +110,10 @@ static inline void draw_particle (Particle * part)
 }
 
 /* Calculate color delta values */
-void calc_color_deltas (Particle * part)
+void calc_color_deltas (Particle * part,Uint8 r,Uint8 g,Uint8 b,Uint8 a)
 {
-    part->rd = (part->targ_color[0] - part->color[0]) / part->age;
-    part->gd = (part->targ_color[1] - part->color[1]) / part->age;
-    part->bd = (part->targ_color[2] - part->color[2]) / part->age;
-    part->ad = (part->targ_color[3] - part->color[3]) / part->age;
+    part->rd = (r - part->color[0]) / part->age;
+    part->gd = (g - part->color[1]) / part->age;
+    part->bd = (b - part->color[2]) / part->age;
+    part->ad = (a - part->color[3]) / part->age;
 }

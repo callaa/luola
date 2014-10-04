@@ -24,30 +24,34 @@
 #ifndef ARCHIVE_H
 #define ARCHIVE_H
 
-/* List to store filenames */
-typedef struct _Filename {
-  char *filename;
-  char *id;
+#include "list.h"
+
+struct Filename {
+  char filename[256];
+  char id[256];
   int index;
-  struct _Filename *next;
-  struct _Filename *prev;
-} Filename;
+  size_t len;
+};
+
+/* Make a new Filename, with proper length */
+extern struct Filename *make_file(const char *name,const char *id,int index);
 
 /* Print the list of items in an LDAT file to stdout */
 /* Returns the number of items printed */
-int print_ldat_catalog(LDAT *ldat,int verbose);
+extern int print_ldat_catalog(LDAT *ldat,int verbose);
 
 /* Put the selected files into an LDAT file */
-int pack_ldat_files(LDAT *ldat,Filename *files);
+/* filenames is a list of struct Filename */
+extern int pack_ldat_files(LDAT *ldat,struct dllist *filenames,int verbose);
 
-/* Unpack selected files from an LDAT file */
-int unpack_ldat_files(LDAT *ldat,Filename *files);
+/* Unpack selected file from an LDAT archive */
+extern int unpack_ldat_file(LDAT *ldat,const struct Filename *file,int verbose);
 
 /* Pack an LDAT file according to the description in INDEX */
 /* Returns the path for the output LDAT file */
-char *pack_ldat_index(LDAT *ldat,char *filename,int packindex);
+extern char *pack_ldat_index(LDAT *ldat,const char *indexfile,int packindex,int verbose);
 
 /* Unpack an LDAT file according to the description in INDEX */
-int unpack_ldat_index(char *filename);
+extern int unpack_ldat_index(const char *indexfile,int verbose);
 
 #endif

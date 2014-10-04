@@ -43,6 +43,9 @@ extern struct dllist *dllist_prepend(struct dllist *list, void *data);
 /* You have to free the data contained in the entry yourself */
 extern struct dllist *dllist_remove(struct dllist *elem);
 
+/* Returns the number of items in a list */
+extern int dllist_count(struct dllist *list);
+
 /* Free a list. freefunction is used to free */
 /* the data. If NULL, data is not freed.     */
 extern void dllist_free(struct dllist *list,void (*freefunction)(void *data));

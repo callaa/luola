@@ -27,16 +27,14 @@
 #include "vector.h"
 
 typedef struct {
-    int x, y;
     Vector vector;
+    int x, y;
     int age;
     int rd, gd, bd, ad;
     unsigned char color[4];
-    unsigned char targ_color[4];
 } Particle;
 
 /* Initialization */
-extern void init_particles (void);
 extern void clear_particles (void);
 
 /* Handling */
@@ -45,6 +43,6 @@ extern Particle *make_particle (int x, int y, int age);
 /* Animation */
 extern void animate_particles (void);
 
-extern void calc_color_deltas (Particle * part);
+extern void calc_color_deltas (Particle * part,Uint8 r,Uint8 g,Uint8 b,Uint8 a);
 
 #endif

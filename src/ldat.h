@@ -51,6 +51,9 @@ typedef struct {
 
 
 /** Opening/closing **/
+/* Check if a file is an LDAT archive */
+extern int is_ldat(const char *filename);
+
 /* Open an SDL_RWops for reading */
 extern LDAT *ldat_open_rw (SDL_RWops * rw);
 
@@ -78,6 +81,9 @@ extern SDL_RWops *ldat_get_item (const LDAT * ldat, const char *id, int item);
 
 /* Get the length of the item */
 extern int ldat_get_item_length (const LDAT * ldat, const char *id, int item);
+
+/* Get the number of items with the same ID */
+extern int ldat_get_item_count (const LDAT * ldat, const char *id);
 
 /* Find an item */
 extern LDAT_Block *ldat_find_item (const LDAT * ldat, const char *id, int item);

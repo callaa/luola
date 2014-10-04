@@ -7,7 +7,7 @@ EXTRA_DIST = \
 	LEVELFILE \
 	DATAFILE \
 	FAQ \
-	RIP \
 	luola.png \
+	luola.desktop \
 	RELEASENOTES.txt
 

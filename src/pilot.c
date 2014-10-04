@@ -25,7 +25,6 @@
 #include <string.h>
 #include <math.h>
 
-#include "defines.h"
 #include "console.h"
 #include "level.h"
 #include "particle.h"
@@ -35,6 +34,10 @@
 #include "ship.h"
 #include "ldat.h"
 #include "fs.h"
+
+#define PILOT_TOOFAST   10  /* For how long can a pilot fall too fast without dieing when hitting ground */
+#define MAX_ROPE_LEN	120 /* Maximium length of the pilots rope in pixels */
+#define ROPE_SPEED      5   /* How fast does the rope unwind */
 
 /* Exported globals */
 char pilot_any_ejected;
@@ -49,29 +52,21 @@ static void pilot_motion_code (Pilot * pilot);
 static void pilot_rope_state (Pilot * pilot, int attach);
 
 /* Initialize pilot code */
-int init_pilots (void) {
+void init_pilots (LDAT *playerfile) {
     int r, p;
     SDL_Surface *tmp;
     SDL_Rect rect, targrect;
-    LDAT *playerdata;
     pilot_any_ejected = 0;
-    playerdata =
-        ldat_open_file (getfullpath (GFX_DIRECTORY, "player.ldat"));
-    if(!playerdata) return 1;
     /* Load pilot sprites */
     for (r = 0; r < 3; r++) {   /* Pilots have 3 frames */
         rect.y = 0;
         targrect.x = 0;
         targrect.y = 0;
-        tmp = load_image_ldat (playerdata, 0, 2, "PILOT", r);   /* Use a colour key instead of alpha */
-        for (p = 0; p < 4; p++) {       /* There is a total of 4 pilots in this game */
+        tmp = load_image_ldat (playerfile, 0, T_COLORKEY, "PILOT", r);
+        for (p = 0; p < 4; p++) { /* There can be 4 pilots in the game */
             rect.w = tmp->w / 4;
             rect.h = tmp->h;
-            pilot_sprite[p][r] =
-                SDL_CreateRGBSurface (tmp->flags, rect.w, rect.h,
-                                      tmp->format->BitsPerPixel,
-                                      tmp->format->Rmask, tmp->format->Gmask,
-                                      tmp->format->Bmask, tmp->format->Amask);
+            pilot_sprite[p][r] = make_surface(tmp,rect.w,rect.h);
             rect.x = rect.w * p;
             pixelcopy ((Uint32 *) tmp->pixels + rect.x,
                        (Uint32 *) pilot_sprite[p][r]->pixels, rect.w, rect.h,
@@ -84,8 +79,6 @@ int init_pilots (void) {
         }
         SDL_FreeSurface (tmp);
     }
-    ldat_free (playerdata);
-    return 0;
 }
 
 /* Initialize a single pilot */

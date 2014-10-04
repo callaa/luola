@@ -1,9 +1,9 @@
-Known bugs:
- * Possible crash on level startup when using larger screen sizes
 
 Things to do
- * Loading music from compact level files
+ * Loading music from compact level files (is this possible in SDL yet?)
  * Force feedback (when SDL supports it)
- * Clean up tools code
  * Refactor the projectile animation code
-
+ * Unified physics engine
+ * Neutral soldiers and helicopters
+ * Optionally one-way jump-points
+ * New font

@@ -27,8 +27,7 @@
 /* Types */
 typedef enum { Snowsource, Snowflake } WeatherFX;
 
-/* Initialization */
-extern void init_weather (void);
+/* Prepare weather for the next level */
 extern void prepare_weather (void);
 
 /* Handling */

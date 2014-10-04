@@ -24,35 +24,121 @@
 #include <string.h>
 #include <stdio.h>
 
+#include "SDL/SDL.h"
+#include "SDL/SDL_rwops.h"
+
 #include "parser.h"
 
+/* actually strips all characters upto 0x20, \r, \n, \t... */
+char *strip_white_space (const char *str)
+{
+    int len;
+    char *newstr = NULL;
+    const char *s1, *s2;
+    s1 = str;
+    s2 = str + strlen (str) - 1;
+    while (s1 < s2 && (*s1 <= ' '))
+        s1++;
+    while (s2 >= s1 && (*s2 <= ' '))
+        s2--;
+    s2++;
+    len = s2 - s1;
+    if (len <= 0)
+        return NULL;
+    newstr = malloc (sizeof (char) * (len + 1));
+    if (newstr == NULL) {
+        printf
+            ("Malloc error at strip_white_space ! (attempted to allocate %d bytes\n",
+             len);
+        exit (1);
+    }
+    strncpy (newstr, s1, len);
+    newstr[len] = '\0';
+    return newstr;
+}
+
+static int split_string (char *str, char delim, char **left, char **right)
+{
+    int l1;
+    char *tl = NULL, *tr = NULL;
+    tl = strchr (str, delim);
+    if(tl) l1 = tl-str; else return 1;
+    tl = malloc (l1 + 1);
+    strncpy (tl, str, l1);
+    tl[l1] = 0;
+    tr = malloc (strlen (str) - l1);
+    strcpy (tr, str + l1 + 1);
+
+    *left = strip_white_space (tl);
+    *right = strip_white_space (tr);
+    free (tl);
+    free (tr);
+    return 0;
+}
+
 /*** Read a single line from file, removing comments and empty lines ***/
-char *readLine(FILE *fp) {
-  char tmps[512],*line;
-  if(fgets(tmps,512,fp)==NULL) return NULL;
-  line=stripWhiteSpace(tmps);
-  if(line==NULL) return "\0";
-  if(line[0]=='#') {free(line); return "\0";}
-  return line;
+/* Line is read up to EOL, EOF or len. Number of bytes read is substracted
+ * from len. */
+static char *read_line(SDL_RWops *rw,size_t *len) {
+    char tmps[512],*line;
+    size_t limit=sizeof(tmps),read=0;
+
+    if(len && *len<limit)
+        limit = *len;
+
+    while(read<limit) {
+        if(SDL_RWread(rw,tmps+read,1,1)!=1) break;
+        read++;
+        if(tmps[read-1]=='\n') break;
+    }
+    if(read==0) return NULL;
+    tmps[read]='\0';
+
+    line=strip_white_space(tmps);
+    if(line==NULL)
+        line="\0";
+    else if(line[0]=='#') {
+        free(line);
+        line="\0";
+    }
+    if(len)
+        *len -= read;
+    return line;
 }
 
 /*** Read and parse a configuration file ***/
 struct dllist *read_config_file(const char *filename,int quiet) {
+    SDL_RWops *rw = SDL_RWFromFile(filename,"r");
+    struct dllist *config;
+
+    if(!rw) {
+        if(!quiet)
+            fprintf(stderr,"%s: %s\n",filename,SDL_GetError());
+        return NULL;
+    }
+
+    config = read_config_rw(rw,0,quiet);
+    SDL_FreeRW(rw);
+
+    return config;
+}
+
+/*** Read and parse a configuration file from an SDL_RWops ***/
+struct dllist *read_config_rw(SDL_RWops *rw,size_t len,int quiet) {
 	struct ConfigBlock *block=NULL;
 	struct dllist *blocks=NULL;
+    size_t *length;
 	char *str;
-	FILE *fp;
 
-	fp=fopen(filename,"r");
-	if(!fp) {
-        if(!quiet) perror(filename);
-		return NULL;
-	}
+    if(len>0)
+        length=&len;
+    else
+        length=NULL;
 
-	while((str=readLine(fp))) {
+	while((str=read_line(rw,length))) {
 		struct KeyValue *pair;
 		if(str[0]=='\0') continue;
-		if(str[0]=='[') {			/* New block */
+		if(str[0]=='[') { /* New block */
 			if(block && block->values)
 				while(block->values->prev)
 					block->values=block->values->prev;
@@ -63,14 +149,15 @@ struct dllist *read_config_file(const char *filename,int quiet) {
 			blocks=dllist_append(blocks,block);
             free(str);
 			continue;
-		} else if(block==NULL) {	/* Default block */
+		} else if(block==NULL) { /* Default block */
 			block=malloc(sizeof(struct ConfigBlock));
             block->title=NULL;
             block->values=NULL;
 			blocks=dllist_append(blocks,block);
 		}
 		pair=malloc(sizeof(struct KeyValue));
-		splitString(str,'=',&pair->key,&pair->value);
+        pair->key = NULL; pair->value = NULL;
+		split_string(str,'=',&pair->key,&pair->value);
 		block->values=dllist_append(block->values,pair);
         free(str);
 	}
@@ -99,13 +186,20 @@ void translate_config(struct dllist *values,int count,char **keys,CfgPtrType *ty
                         case CFG_FLOAT: *((float*)pointers[r])=atof(pair->value); break;
                         case CFG_DOUBLE: *((double*)pointers[r])=atof(pair->value); break;
                         case CFG_STRING: *((char**)pointers[r])=strdup(pair->value); break;
+                        case CFG_MULTISTRING: {
+                            struct dllist **list = pointers[r];
+                            if(*list)
+                                dllist_append(*list,strdup(pair->value));
+                            else
+                                *list = dllist_append(NULL,strdup(pair->value));
+                            } break;
 
                     }
                     break;
                 }
             }
             if(r==count && quiet==0) {
-                printf("Unrecognized setting \"%s\"\n",pair->key);
+                fprintf(stderr,"Unrecognized setting \"%s\"\n",pair->key);
             }
         }
 		values=values->next;
@@ -114,8 +208,8 @@ void translate_config(struct dllist *values,int count,char **keys,CfgPtrType *ty
 
 /* Used by dllist_free to free a configuration file buffer */
 static void free_config_key_pair(void *data) {
-	free(((struct KeyValue*)data)->key);
-	free(((struct KeyValue*)data)->value);
+    free(((struct KeyValue*)data)->key);
+    free(((struct KeyValue*)data)->value);
 	free(data);
 }
 
@@ -124,45 +218,5 @@ void free_config_file(void *data) {
 	free(block->title);
 	dllist_free(block->values,free_config_key_pair);
 	free(block);
-}
-
-/* actually strips all characters upto 0x20, \r, \n, \t... */
-char *stripWhiteSpace(const char *str) {
-	int len;
-	char *newstr=NULL;
-	const char *s1,*s2;
-	s1=str;
-	s2=str+strlen(str)-1;
-	while(s1<s2 && (*s1<=' ')) s1++;
-	while(s2>=s1 && (*s2<=' ')) s2--;
-	s2++;
-	len=s2-s1;
-	if(len<=0) return NULL;
-	newstr=malloc(len+1);
-	if(newstr==NULL) {
-		perror("malloc");
-		return NULL;
-	}
-	strncpy(newstr,s1,len);
-	newstr[len]='\0';
-	return newstr;
-}
-
-int splitString(char *str,char delim,char **left,char **right) {
-	int l1;
-	char *tl=NULL,*tr=NULL;
-	l1=strchr(str,delim)-str;
-	if(l1<0) return 1;
-	tl=malloc(l1+1);
-	strncpy(tl,str,l1);
-	tl[l1]=0;
-	tr=malloc(strlen(str)-l1);
-	strcpy(tr,str+l1+1);
-
-	*left=stripWhiteSpace(tl);
-	*right=stripWhiteSpace(tr);
-	free(tl);
-	free(tr);
-	return 0;
 }
 

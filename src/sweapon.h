@@ -26,6 +26,11 @@
 
 #include "weapon.h"
 
+#define DIVIDINGMINE_INTERVAL   213
+#define DIVIDINGMINE_RAND       40
+#define EMBER_LIFE	33      /* How long does an ember last before splitting */
+#define MIRV_LIFE	26      /* How long does a MIRV last before splitting */
+
 /* Certain weapons have special movement code */
 /* Note. This code might not have actually anything to do with movement, */
 /* it might as well be code for a cloaking device or a smoketrail */

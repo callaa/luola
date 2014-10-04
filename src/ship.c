@@ -24,7 +24,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
-#include "defines.h"
+
+#ifdef HAVE_CONFIG_H
+#include "../config.h"
+#endif
+
 #include "console.h"
 #include "player.h"
 #include "level.h"
@@ -38,8 +42,12 @@
 #include "special.h"
 #include "critter.h"
 #include "levelfile.h"
-#include "stringutil.h"
 #include "ship.h"
+#include "sweapon.h"
+
+#define SHIP_POSES      36
+#define REMOTE_FRAMES   11
+#define SHIP_WHITE_DUR	4   /* After receiving damage, for how many frames the ship appears white */
 
 /* Exported globals */
 SDL_Surface **ship_gfx[7];      /* 0=grey, 1-4=coloured, 5 = white, 6 =  frozen */
@@ -64,20 +72,16 @@ static void cloaking_device (struct Ship * ship, char status);
 static void ship_splash (struct Ship * ship);
 
 /* Initialize */
-int init_ships (void) {
-    LDAT *playerdata;
+void init_ships (LDAT *playerfile) {
     int r, p;
     ship_list = NULL;
     really_weak_gravity = makeVector (0, -WEAP_GRAVITY / 4.0);
     strong_gravity = makeVector (0, -GRAVITY * 2.0);
     /* Load ship graphics */
-    playerdata =
-        ldat_open_file (getfullpath (GFX_DIRECTORY, "player.ldat"));
-    if(!playerdata) return 1;
     for (r = 0; r < 7; r++) {
         ship_gfx[r] = malloc (sizeof (SDL_Surface) * SHIP_POSES);
         for (p = 0; p < SHIP_POSES; p++) {
-            ship_gfx[r][p] = load_image_ldat (playerdata, 0, 1, "VWING", p);
+            ship_gfx[r][p] = load_image_ldat (playerfile, 0, T_ALPHA,"VWING",p);
             switch (r) {
             case Grey:
                 recolor (ship_gfx[r][p], 0.6, 0.6, 0.6, 1);
@@ -113,7 +117,7 @@ int init_ships (void) {
     }
     /* Load Shield graphics */
     for (r = 0; r < 4; r++) {
-        shield_gfx[r] = load_image_ldat (playerdata, 0, 1, "SHIELD", 0);
+        shield_gfx[r] = load_image_ldat (playerfile, 0, T_ALPHA, "SHIELD", 0);
         switch (r + Red) {
         case Red:
             recolor (shield_gfx[r], 1, 0.4, 0.4, 1);
@@ -133,14 +137,8 @@ int init_ships (void) {
         }
     }
     /* Load Remote Control graphics */
-    ldat_free (playerdata);
-    playerdata =
-        ldat_open_file (getfullpath (GFX_DIRECTORY, "xmit.ldat"));
-    if(!playerdata) return 1;
     remocon_gfx =
-        load_image_array (playerdata, 0, 1, "XMIT", 0, REMOTE_FRAMES - 1);
-    ldat_free (playerdata);
-    return 0;
+        load_image_array (playerfile, 0, T_ALPHA, "XMIT", 0, REMOTE_FRAMES - 1);
 }
 
 /* Remove ships */
@@ -151,17 +149,18 @@ void clean_ships (void)
 }
 
 /* Prepare for a new level */
-void reinit_ships (LevelSettings * settings)
+void reinit_ships (struct LevelSettings * settings)
 {
-    LSB_Objects *object = NULL;
+    struct dllist *objects=NULL;
     SWeaponType standard;
     WeaponType special;
     PlayerColor color;
     struct Ship *newship;
     if (settings)
-        object = settings->objects;
-    while (object) {
-        if (object->type == 0x20) {
+        objects = settings->objects;
+    while (objects) {
+        struct LSB_Object *object = objects->data;
+        if (object->type == OBJ_SHIP) {
             switch (object->value) {
             case 1:
                 color = Red;
@@ -192,7 +191,7 @@ void reinit_ships (LevelSettings * settings)
             newship->x = object->x;
             newship->y = object->y;
         }
-        object = object->next;
+        objects = objects->next;
     }
 }
 
@@ -834,6 +833,30 @@ void killship (struct Ship * ship)
     playwave(WAV_CRASH);
 }
 
+static const char *critical2str (int critical)
+{
+    switch (critical) {
+    case CRITICAL_ENGINE:
+        return "Critical engine core";
+    case CRITICAL_FUELCONTROL:
+        return "Critical fuel control";
+    case CRITICAL_LTHRUSTER:
+        return "Critical left thruster";
+    case CRITICAL_RTHRUSTER:
+        return "Critical right thruster";
+    case CRITICAL_CARGO:
+        return "Critical cargo hold";
+    case CRITICAL_STDWEAPON:
+        return "Critical mainweapon";
+    case CRITICAL_SPECIAL:
+        return "Critical special weapon";
+    case CRITICAL_POWER:
+        return "Temporary power failure";
+    default:
+        return "Unhandled critical";
+    }
+}
+
 /* A random critical hit */
 void ship_critical (struct Ship * ship, int repair)
 {
@@ -944,77 +967,19 @@ char ship_fire_special_weapon (struct Ship * ship)
 static void ship_exhaust (struct Ship * ship, Vector vec, signed char solid)
 {
     Particle *part;
-#ifdef VWING_STYLE_SMOKE
-    Particle *part2, *part3, *part4;
-    if (ship->vwing_exhaust <= 2) {
-        ship->vwing_exhaust++;
-        return;
-    }
-    ship->vwing_exhaust = 0;
-    part =
-        make_particle (ship->x + (sin (ship->angle - 0.58) * 5.0),
-                       ship->y + (cos (ship->angle - 0.58) * 5.0), 5);
-    part->vector.x = 0;
-    part->vector.y = 0;
-    part2 =
-        make_particle (ship->x + (sin (ship->angle + 0.58) * 5.0),
-                       ship->y + (cos (ship->angle + 0.58) * 5.0), 5);
-    part2->vector = part->vector;
-    part3 = make_particle (part->x, part->y, 2);
-    part4 = make_particle (part2->x, part2->y, 2);
-    part3->vector = ship->vector;
-    part4->vector = ship->vector;
-#else
     part = make_particle (ship->x, ship->y, 15);
     part->vector = oppositeVector (&vec);
-#endif
     if (solid < 0) {
         part->color[0] = 100;
         part->color[1] = 100;
         part->color[2] = 255;
-        //part->targ_color[0]=0; part->targ_color[1]=0; part->targ_color[2]=100;
         part->rd = -20;
         part->bd = -20;
         part->gd = -31;
-        //calc_color_deltas(part);
+        //calc_color_deltas(part,0,0,0,255);
         part->vector.x += 0.5 - ((rand () % 100) / 100.0);
         part->vector.y += 0.5 - ((rand () % 100) / 100.0);
     }
-#ifdef VWING_STYLE_SMOKE
-    else {
-        part->color[0] = 255;
-        part->color[1] = 255;
-        part->color[2] = 255;
-        if (ship->visible == 0) {
-            part->color[0] = 25;
-            part->color[1] = 25;
-            part->color[2] = 25;
-            part->color[3] = 50;
-        }
-        part->targ_color[0] = 255;
-        part->targ_color[1] = 100;
-        part->targ_color[2] = 100;
-        part->targ_color[3] = 255;
-        calc_color_deltas (part);
-        memcpy (part2->color, part->color, 4);
-        memcpy (part3->color, part->color, 4);
-        memcpy (part4->color, part->color, 4);
-        part2->rd = part->rd;
-        part2->gd = part->gd;
-        part2->bd = part->bd;
-        part2->ad = part->ad;
-        part3->rd = 0;
-        part3->bd = 0;
-        part3->gd = 0;
-        part3->ad = 0;
-        part4->rd = 0;
-        part4->bd = 0;
-        part4->gd = 0;
-        part4->ad = 0;
-    }
-#endif
-#ifdef VWING_STYLE_SMOKE
-#endif
 }
 
 /* Player special features such as cloaking device */
@@ -1043,9 +1008,6 @@ static void ship_specials (struct Ship * ship) {
     /* The rest are mutually exclusive (one player can have only one special weapon */
     /* Cloaking device */
     if (ship->visible == 0) {
-#ifdef CHEAT_POSSIBLE
-        if (!cheat1)
-#endif
             ship->energy -= 0.001;
         if (ship->energy <= 0) {
             ship->visible = 1;
@@ -1054,9 +1016,6 @@ static void ship_specials (struct Ship * ship) {
     }
     /* Ghost mode */
     else if (ship->ghost == 1) {
-#ifdef CHEAT_POSSIBLE
-        if (!cheat1)
-#endif
             ship->energy -= 0.002;
         if (ship->energy <= 0) {
             ship->ghost = 0;
@@ -1066,9 +1025,6 @@ static void ship_specials (struct Ship * ship) {
     }
     /* Shield */
     else if (ship->shieldup == 1) {
-#ifdef CHEAT_POSSIBLE
-        if (!cheat1)
-#endif
             ship->energy -= 0.005;
         if (ship->energy <= 0) {
             ship->shieldup = 0;
@@ -1082,9 +1038,6 @@ static void ship_specials (struct Ship * ship) {
             ship->repeat_audio = 15;
         } else
             ship->repeat_audio--;
-#ifdef CHEAT_POSSIBLE
-        if (!cheat1)
-#endif
             ship->energy -= 0.002;
         if (ship->energy <= 0) {
             ship->afterburn = 1;
@@ -1092,9 +1045,6 @@ static void ship_specials (struct Ship * ship) {
             ship->energy = 0;
         }
     } else if (ship->antigrav) {
-#ifdef CHEAT_POSSIBLE
-        if (!cheat1)
-#endif
             ship->energy -= 0.001;
         if (ship->energy <= 0) {
             ship->antigrav = 0;
@@ -1103,10 +1053,7 @@ static void ship_specials (struct Ship * ship) {
     }
     /* Autorepair */
     else if (ship->repairing) {
-#ifdef CHEAT_POSSIBLE
-        if (!cheat1)
-#endif
-            ship->energy -= 0.001;
+        ship->energy -= 0.001;
         ship->health += 0.0008;
         if (ship->health >= 1) {
             ship->health = 1;
@@ -1172,10 +1119,7 @@ static void ship_tagged (struct Ship * ship)
     smoke->gd = 0;
     smoke->ad = -1;
 #else
-    smoke->targ_color[0] = 0;
-    smoke->targ_color[1] = 0;
-    smoke->targ_color[2] = 0;
-    calc_color_deltas (smoke);
+    calc_color_deltas (smoke,0,0,0,255);
 #endif
 }
 
@@ -1245,17 +1189,15 @@ static void cloaking_device (struct Ship * ship, char status)
                     part->vector.y =
                         ship->vector.y + 1.0 - ((rand () % 20) / 10.0);
                 } else {
+                    Uint8 tr,tg,tb,ta;
                     part = make_particle (ship->x + x, ship->y + y, 3);
-                    memset (part->color, 0, 4);
-                    part->targ_color[0] =
-                        (*src & surf->format->Rmask) >> surf->format->Rshift;
-                    part->targ_color[1] =
-                        (*src & surf->format->Gmask) >> surf->format->Gshift;
-                    part->targ_color[2] =
-                        (*src & surf->format->Bmask) >> surf->format->Bshift;
-                    part->targ_color[3] =
-                        (*src & surf->format->Amask) >> surf->format->Ashift;
-                    calc_color_deltas (part);
+                    part->color[0]=0; part->color[1]=0;
+                    part->color[2]=0; part->color[3]=0;
+                    tr = (*src & surf->format->Rmask) >> surf->format->Rshift;
+                    tg = (*src & surf->format->Gmask) >> surf->format->Gshift;
+                    tb = (*src & surf->format->Bmask) >> surf->format->Bshift;
+                    ta = (*src & surf->format->Amask) >> surf->format->Ashift;
+                    calc_color_deltas (part,tr,tg,tb,ta);
                     part->vector = ship->vector;
                 }
             }
@@ -1516,10 +1458,7 @@ void ship_fire (struct Ship * ship, WeaponClass weapon) {
                 part1->color[0] = 255;
                 part1->color[1] = 255;
                 part1->color[2] = 0;
-                part1->targ_color[0] = 100;
-                part1->targ_color[1] = 100;
-                part1->targ_color[2] = 0;
-                calc_color_deltas (part1);
+                calc_color_deltas (part1, 100, 100, 0 ,255);
                 part2 = make_particle (ship->x, ship->y, 20);
                 part2->vector =
                     makeVector (sin (ship->angle - M_PI_2) * 2+ship->vector.x,
@@ -1650,10 +1589,6 @@ void ship_fire (struct Ship * ship, WeaponClass weapon) {
     add_projectile (p);
     if (playsound)
         playwave (sfx);
-#ifdef CHEAT_POSSIBLE
-    if (cheat1)
-        ship->energy = 1.0;
-#endif
 }
 
 /* Fire a special weapon that doesn't require projectiles */
@@ -1738,7 +1673,7 @@ static char ship_fire_special_noproj (struct Ship * ship)
     case WInfantry:
         if (ship->energy >= 0.05) {
             add_critter (make_critter
-                         (Infantry, ship->x, ship->y, find_player (ship)));
+                         (OBJ_SOLDIER, ship->x, ship->y, find_player (ship)));
             ship->energy -= 0.05;
             ship->special_cooloff = 5;
             if (ship->energy < 0)
@@ -1749,7 +1684,7 @@ static char ship_fire_special_noproj (struct Ship * ship)
         if (ship->energy >= 0.25
             && lev_level.solid[Round(ship->x)][Round(ship->y)] == TER_FREE) {
             add_critter (make_critter
-                         (Helicopter, ship->x, ship->y, find_player (ship)));
+                         (OBJ_HELICOPTER,ship->x, ship->y, find_player (ship)));
             ship->energy -= 0.25;
             ship->special_cooloff = 15;
             if (ship->energy < 0)
@@ -2074,10 +2009,7 @@ signed char ship_damage (struct Ship * ship, Projectile * proj)
         damage = 0.03;
         if (proj->owner == ship) {
             damage = 0;
-#ifdef CHEAT_POSSIBLE
-            if (cheat1 == 0)
-#endif
-                ship->energy += 0.06;
+            ship->energy += 0.06;
             return -2;
         }
         break;

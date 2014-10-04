@@ -35,6 +35,7 @@ typedef enum { WAV_BLIP, WAV_BLIP2, WAV_NORMALWEAP,
 } AudioSample;
 
 #define SAMPLE_COUNT 18
+#define HEARINGRANGE 350.0
 
 /* Initialization */
 extern void init_audio (void);
@@ -42,18 +43,36 @@ extern void init_audio (void);
 extern void audio_setsndvolume(int volume);
 extern void audio_setmusvolume(int volume);
 
-/* Playback */
+/* Play back a sound effect */
 extern void playwave (AudioSample sample);
-extern void playwave_pan (AudioSample sample, unsigned char left,
-                          unsigned char right);
+
+/* Play back a sound effect in stereo. */
+/* Listener is at coordinates 0,0 and x,y are */
+/* the coordinates for the sound source. */
 extern void playwave_3d (AudioSample sample, int x, int y);
 
-/* Music */
+/* Start playing back music, if any. */
 extern void music_play (void);
+
+/* Stop music playback */
 extern void music_stop (void);
+
+/* Wait until music has stopped fading */
+extern void music_wait_stopped (void);
+
+/* Skip n songs in playlist. If skips is negative, */
+/* a random number of songs are skipped. */
 extern void music_skip (int skips);
+
+/* Push the current playlist into a holding buffer */
+/* and start a new playlist */
 extern void music_newplaylist (void);
+
+/* Free the current playlist and restore the old one */
+/* from the buffer. */
 extern void music_restoreplaylist (void);
-extern void music_add_song (char *filename);
+
+/* Add a song to the current playlist */
+extern void music_add_song (const char *filename);
 
 #endif

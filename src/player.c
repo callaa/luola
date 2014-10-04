@@ -28,7 +28,6 @@
 
 #include "SDL.h"
 
-#include "defines.h"
 #include "fs.h"
 #include "console.h"
 #include "particle.h"
@@ -39,8 +38,6 @@
 #include "game.h"
 #include "special.h"
 #include "critter.h"
-#include "weather.h"
-#include "stringutil.h"
 #include "ship.h"
 
 #include "audio.h"
@@ -60,17 +57,13 @@ int player_teams[4];
 int plr_teams_left;
 int radars_visible;
 Player players[4];
-#ifdef CHEAT_POSSIBLE
-char cheat, cheat1;
-#endif
 
 /* Internally used functions */
 static void player_key_update(unsigned char plr);
 
 /* Initialize players */
-int init_players (void) {
+void init_players (LDAT *misc) {
     int p;
-    LDAT *misc;
     plr_healthbar_col = SDL_MapRGB (screen->format, 80, 98, 186);
     plr_healthbar_col2 = SDL_MapRGB (screen->format, 200, 200, 0);
     plr_healthbar_col3 = SDL_MapRGB (screen->format, 200, 0, 0);
@@ -85,34 +78,36 @@ int init_players (void) {
     }
     radars_visible = 0;
     /* Load graphics */
-    misc = ldat_open_file (getfullpath (GFX_DIRECTORY, "misc.ldat"));
-    if(!misc) return 1;
-    plr_weaponsel_bg = load_image_ldat (misc, 1, 2, "WEAPONSEL", 0);
+    plr_weaponsel_bg = load_image_ldat (misc, 1, T_COLORKEY, "WEAPONSEL", 0);
     /* TODO: Load critical icons */
-    ldat_free (misc);
+}
 
-    return 0;
+/* Return the number of active players */
+int active_players(void) {
+    int p,a=0;
+    for(p=0;p<4;p++)
+        if(players[p].state != INACTIVE) a++;
+    return a;
 }
 
 /* Prepare players for a new round */
 void reinit_players (void) {
     int p, unlucky = -1;
     endgame = -1;
-    if (strcmp (game_settings.players_in, "    ") == 0) {
-        printf("Bug! reinit_players(): no players selected!\n");
-        abort();
+    if (active_players() == 0) {
+        fprintf(stderr, "Bug! reinit_players(): no players selected!\n");
+        exit(1);
     }
     if (game_settings.playmode == OutsideShip1) {
         do
             unlucky = rand () % 4;
-        while (game_settings.players_in[unlucky] == ' ');
+        while (players[unlucky].state == INACTIVE);
     }
     for (p = 0; p < 4; p++) {
         players[p].ship=NULL;
-        if (game_settings.players_in[p] == ' ') {
-            players[p].state=INACTIVE;
+        if (players[p].state == INACTIVE)
             continue;
-        }
+
         players[p].state = ALIVE;
         players[p].recall_cooloff = 0;
         init_pilot(&players[p].pilot,p);
@@ -164,7 +159,7 @@ void reinit_players (void) {
     /* Count the number of teams and the number of players in each of them */
     memset(plr_teamc,0,sizeof(int)*4);
     for (p = 0; p < 4; p++)
-        if (players[p].state)
+        if (players[p].state!=INACTIVE)
             plr_teamc[player_teams[p]]++;       /* Number of players per team */
     plr_teams_left = 0;
     for (p = 0; p < 4; p++)
@@ -400,8 +395,9 @@ void animate_players ()
                     players[n].pilot.sprite[0]->w / 2;
             }
         }
-        /* BUG: Sometimes with larger videomodes, setting y here will
-         * apparently clobber x */
+        /* If viewport width or height is greater than that of the */
+        /* level, x or y will be set to a negative value and luola */
+        /* will crash later. (Most likely in draw_stars) */
         cam_rects[n].x = newx - cam_rects[n].w/2;
         cam_rects[n].y = newy - cam_rects[n].h/2;
         if (cam_rects[n].x < 0)
@@ -421,9 +417,9 @@ void player_keyhandler (SDL_KeyboardEvent * event, Uint8 type)
     int p, b;
     SDLKey key = event->keysym.sym;
     for (p = 0; p < 4; p++) {   /* Check all 4 players */
-        if (players[p].state==ALIVE&&game_settings.controller[p]==Keyboard) {
-            for (b = 0; b < 6; b++) {       /* Each player has 6 buttons */
-                if (game_settings.buttons[p][b] == key) {
+        if (players[p].state==ALIVE&&game_settings.controller[p].number==0) {
+            for (b = 0; b < 6; b++) { /* Each player has 6 buttons */
+                if (game_settings.controller[p].keys[b] == key) {
                     switch (b) {
                     case 0:
                         players[p].controller.axis[0] = (type == SDL_KEYDOWN);
@@ -458,11 +454,11 @@ void player_joyaxishandler (SDL_JoyAxisEvent * axis)
     int p;
     signed char state;
     for (p = 0; p < 4; p++) {
-        if (players[p].state!=ALIVE||game_settings.controller[p]==Keyboard)
+        if (players[p].state!=ALIVE||game_settings.controller[p].number==0)
             continue;
-        if (game_settings.controller[p] - 1 != axis->which)
+        if (game_settings.controller[p].number - 1 != axis->which)
             continue;
-        state = abs (axis->value) > JSTRESHOLD;
+        state = abs (axis->value) > 16384;
         if (axis->axis == 0)    /* left/right */
             players[p].controller.axis[1] =
                 (axis->value > 0) ? -state : state;
@@ -479,9 +475,9 @@ void player_joybuttonhandler (SDL_JoyButtonEvent * button)
 {
     int p;
     for (p = 0; p < 4; p++) {
-        if (players[p].state!=ALIVE||game_settings.controller[p]==Keyboard)
+        if (players[p].state!=ALIVE||game_settings.controller[p].number==0)
             continue;
-        if (game_settings.controller[p] - 1 != button->which)
+        if (game_settings.controller[p].number - 1 != button->which)
             continue;
         switch (button->button) {
         case 1:
@@ -727,36 +723,4 @@ void recall_ship (int plr) {
     }
     players[plr].recall_cooloff=JPLONGLIFE*2;
 }
-
-#ifdef CHEAT_POSSIBLE
-void cheatcode (SDLKey sym) {
-    int p;
-    switch (sym) {
-    case SDLK_HOME:            /* heal ships */
-        for (p = 0; p < 4; p++)
-            if (players[p].ship && players[p].ship->dead == 0) {
-                players[p].ship->health = 1;
-                set_player_message (p, Bigfont, font_color_red, 25,
-                                    "Health restored");
-            }
-        break;
-    case SDLK_PAGEUP:
-        for (p = 0; p < 4; p++)
-            if (players[p].ship && players[p].ship->dead == 0)
-                set_player_message (p, Bigfont, font_color_red, 25,
-                                    "Unlimited ammo");
-        cheat1 = 1;
-        break;
-    case SDLK_PAGEDOWN:
-        for (p = 0; p < 4; p++)
-            if (players[p].ship && players[p].ship->dead == 0)
-                set_player_message (p, Bigfont, font_color_red, 25,
-                                    "Limited ammo");
-        cheat1 = 0;
-        break;
-    default:
-        break;
-    }
-}
-#endif
 

@@ -26,7 +26,6 @@
 
 #include "SDL_endian.h"
 
-#include "defines.h"
 #include "fs.h"
 #include "console.h"
 #include "animation.h"
@@ -43,35 +42,32 @@
 #include "demo.h"
 #include "startup.h"
 
+/* The Bit Depth to use */
+#define SCREEN_DEPTH 32
+
 /** Globals **/
 SDL_Surface *screen;
 
-unsigned int Controllers;
-
-Uint32 col_gray, col_grenade, col_snow, col_clay, col_clay2, col_default,
-    col_yellow, col_black, col_red, col_white, col_rope, col_plrs[4];
+Uint32 col_gray, col_grenade, col_snow, col_clay, col_clay_uw, col_default,
+    col_yellow, col_black, col_red, col_cyan, col_white, col_rope, col_plrs[4];
 Uint32 col_pause_backg, col_green, col_blue, col_transculent;
 
 /* Internally used globals */
-static SDL_Joystick **pads;
-static int jscount;
+static SDL_Joystick *pad_0; /* The first joypad is always opened,
+                               for it can be used in menus */
 
 /** Cleanup **/
 void con_cleanup (void)
 {
-    int p;
-    for (p = 0; p < jscount; p++)
-        if (pads[p])
-            SDL_JoystickClose (pads[p]);
+    if (pad_0)
+        SDL_JoystickClose (pad_0);
     SDL_Quit ();
 }
 
 /** Initalize SDL **/
 void init_sdl ()
 {
-    Uint32 initflags;
-    int j;
-    initflags = SDL_INIT_VIDEO;
+    Uint32 initflags = SDL_INIT_VIDEO;
     if (luola_options.joystick)
         initflags = initflags | SDL_INIT_JOYSTICK;
 #if HAVE_LIBSDL_MIXER
@@ -79,27 +75,50 @@ void init_sdl ()
         initflags = initflags | SDL_INIT_AUDIO;
 #endif
     if (SDL_Init (initflags)) {
-        printf ("Error: Unable to initialize SDL: %s\n", SDL_GetError ());
+        fprintf (stderr,"Unable to initialize SDL: %s\n", SDL_GetError ());
         exit (1);
     }
-    pads = NULL;
-    jscount = 0;
+
+    /* Try opening the first joystick */
+    pad_0 = NULL;
     if (luola_options.joystick) {
-        jscount = SDL_NumJoysticks ();
-        if (jscount == 0)
-            printf ("Warning: No joysticks available\n");
-        else
-            pads = malloc (sizeof (SDL_Joystick *) * jscount);
-        memset (pads, 0, sizeof (SDL_Joystick *) * jscount);
-        for (j = 0; j < jscount; j++) {
-            pads[j] = SDL_JoystickOpen (j);
-            if (pads[j] == NULL)
-                printf ("Warning: Unable to open joystick %d: %s\n", j,
+        int jscount = SDL_NumJoysticks ();
+        if (jscount == 0) {
+            fprintf (stderr,"No joysticks available\n");
+        } else {
+            pad_0 = SDL_JoystickOpen (0);
+            if (pad_0 == NULL)
+                fprintf (stderr,"Unable to open the first joypad: %s\n",
                         SDL_GetError ());
         }
     }
     atexit (con_cleanup);
-    Controllers = jscount + 1;  /* One keyboard + joysticks */
+}
+
+/* Open player joypads */
+void open_joypads() {
+    int r;
+    for(r=0;r<4;r++) {
+        if(game_settings.controller[r].number>1) {
+            game_settings.controller[r].device =
+                SDL_JoystickOpen(game_settings.controller[r].number-1);
+            if(pad_0 == NULL) {
+                fprintf(stderr,"Couldn't open joypad %d",
+                        game_settings.controller[r].number-1);
+            }
+        }
+    }
+}
+
+/* Close player joypads */
+void close_joypads() {
+    int r;
+    for(r=0;r<4;r++) {
+        if(game_settings.controller[r].device) {
+            SDL_JoystickClose (game_settings.controller[r].device);
+            game_settings.controller[r].device = NULL;
+        }
+    }
 }
 
 /** Initialize video **/
@@ -120,13 +139,13 @@ void init_video () {
             break;
         default:
             fprintf(stderr,"Bug! init_video(): unknown video mode %d!\n",luola_options.videomode);
-            abort();
+            exit(1);
     }
     screen =
         SDL_SetVideoMode (swidth, sheight, SCREEN_DEPTH,
                           (luola_options.fullscreen?SDL_FULLSCREEN:0)|SDL_SWSURFACE);
     if (screen == NULL) {
-        printf ("Unable to set video mode: %s\n", SDL_GetError ());
+        fprintf (stderr,"Unable to set video mode: %s\n", SDL_GetError ());
         exit (1);
     }
     if (luola_options.hidemouse)
@@ -143,6 +162,7 @@ void init_video () {
     col_yellow = map_rgba (255, 255, 100, 255);
     col_red = map_rgba (255, 0, 0, 255);
     col_blue = map_rgba (0, 0, 255, 255);
+    col_cyan = map_rgba (0, 128, 255, 255);
     col_white = map_rgba (255, 255, 255, 255);
     col_rope = map_rgba (178, 159, 103, 255);
     col_plrs[0] = map_rgba (255, 0, 0, 255);
@@ -221,17 +241,7 @@ SDL_Surface *flip_surface (SDL_Surface * original) {
     SDL_Surface *flipped;
     int y;
     bpp = original->format->BytesPerPixel;
-    flipped =
-        SDL_CreateRGBSurface (original->flags, original->w, original->h,
-                              original->format->BitsPerPixel,
-                              original->format->Rmask,
-                              original->format->Gmask,
-                              original->format->Bmask,
-                              original->format->Amask);
-    if (bpp == 1)               /* Copy the palette */
-        SDL_SetPalette (flipped, SDL_LOGPAL,
-                        original->format->palette->colors, 0,
-                        original->format->palette->ncolors);
+    flipped = make_surface(original,0,0);
     src = ((Uint8 *) original->pixels) + (original->h - 1) * original->pitch;
     targ = ((Uint8 *) flipped->pixels);
     for (y = 0; y < flipped->h; y++) {
@@ -245,23 +255,32 @@ SDL_Surface *flip_surface (SDL_Surface * original) {
 /* Returns a copy of the surface */
 SDL_Surface *copy_surface (SDL_Surface * original) {
     SDL_Surface *newsurface;
-    Uint8 bpp, *src, *targ;
-    bpp = original->format->BytesPerPixel;
-    newsurface =
-        SDL_CreateRGBSurface (original->flags, original->w, original->h,
-                              original->format->BitsPerPixel,
-                              original->format->Rmask,
-                              original->format->Gmask,
-                              original->format->Bmask,
-                              original->format->Amask);
-    if (bpp == 1)               /* Copy the palette */
-        SDL_SetPalette (newsurface, SDL_LOGPAL,
-                        original->format->palette->colors, 0,
-                        original->format->palette->ncolors);
-    src = (Uint8 *) original->pixels;
-    targ = (Uint8 *) newsurface->pixels;
-    memcpy (targ, src, original->pitch * original->h);
+
+    newsurface = make_surface(original,0,0);
+    memcpy (newsurface->pixels, original->pixels,original->pitch*original->h);
+
     return newsurface;
+}
+
+/* Make a new surface that is like the one given */
+SDL_Surface *make_surface(SDL_Surface * likethis,int w,int h) {
+    if(w==0 || h==0) {
+        w = likethis->w;
+        h = likethis->h;
+    }
+    SDL_Surface *surface = SDL_CreateRGBSurface (likethis->flags,
+                                  w, h,
+                                  likethis->format->BitsPerPixel,
+                                  likethis->format->Rmask,
+                                  likethis->format->Gmask,
+                                  likethis->format->Bmask,
+                                  likethis->format->Amask);
+    if (likethis->format->BytesPerPixel == 1) /* Copy the palette */
+        SDL_SetPalette (surface, SDL_LOGPAL,
+                        likethis->format->palette->colors, 0,
+                        likethis->format->palette->ncolors);
+
+    return surface;
 }
 
 /* Rectangle clipping */
@@ -348,7 +367,7 @@ void recolor (SDL_Surface * surface, float red, float green, float blue,
               float alpha) {
     Uint8 *pos, *end;
     if (surface->format->BytesPerPixel != 4) {
-        printf("Error! Unsupported color depth (%d bytes per pixel), currently only 4 bps is supported. (fix this at recolor(), console.c)\n",
+        fprintf(stderr,"Unsupported color depth (%d bytes per pixel), currently only 4 bps is supported. (fix this at recolor(), console.c)\n",
              screen->format->BytesPerPixel);
         exit (1);
     }
@@ -381,17 +400,9 @@ SDL_Surface *zoom_surface(SDL_Surface *original, float aspect, float zoom) {
         fprintf(stderr,"zoom_surface(): surface has %d bytes per pixel, only 1 and 4 are supported!\n",bpp);
         return NULL;
     }
-    scaled =
-        SDL_CreateRGBSurface (original->flags, original->w * aspect * zoom,
-                              original->h * zoom,
-                              original->format->BitsPerPixel,
-                              original->format->Rmask,
-                              original->format->Gmask,
-                              original->format->Bmask,
-                              original->format->Amask);
-    if (bpp == 1)
-        SDL_SetPalette (scaled, SDL_LOGPAL, original->format->palette->colors,
-                        0, original->format->palette->ncolors);
+    scaled = make_surface(original,original->w * aspect * zoom,
+            original->h * zoom);
+
     targ = ((Uint8 *) scaled->pixels);
     for (y = 0; y < scaled->h; y++) {
         for (x = 0; x < scaled->w; x++) {
@@ -438,6 +449,8 @@ void wait_for_enter(void) {
             }
         } else if(e.type==SDL_JOYBUTTONDOWN)
             break;
+        else if(e.type==SDL_QUIT)
+            exit(0);
     }
 }
 
@@ -463,7 +476,7 @@ void toggle_fullscreen(void) {
         SDL_SetVideoMode (w, h, SCREEN_DEPTH,
                           (fullscreen?SDL_FULLSCREEN:0)|SDL_SWSURFACE);
     if (screen == NULL) {
-        printf ("Unable to set video mode: %s\n", SDL_GetError ());
+        fprintf (stderr,"Unable to set video mode: %s\n", SDL_GetError ());
         exit (1);
     }
 
@@ -472,6 +485,39 @@ void toggle_fullscreen(void) {
     free(pixels);
     SDL_UpdateRect(screen,0,0,0,0);
 #endif
+}
+
+/* Display an error message */
+void error_screen(const char *title, const char *exitmsg,
+        const char *message[], int lines) {
+    SDL_Rect r1, r2;
+    int txty;
+    int r;
+
+    r1.x = 10;
+    r1.w = screen->w - 20;
+    r1.y = 10;
+    r1.h = screen->h - 20;
+    r2.x = r1.x + 2;
+    r2.y = r1.y + 2;
+    r2.w = r1.w - 4;
+    r2.h = r1.h - 4;
+    txty= r2.y + 10;
+
+    SDL_FillRect (screen, &r1, SDL_MapRGB (screen->format, 255, 0, 0));
+    SDL_FillRect (screen, &r2, SDL_MapRGB (screen->format, 0, 0, 0));
+    centered_string (screen, Bigfont, txty, title, font_color_red);
+    txty += 40;
+
+    for(r=0;r<lines;r++,txty+=font_height(Bigfont))
+        if(message[r][0]!='\0')
+            centered_string (screen, Bigfont, txty,message[r], font_color_white);
+    
+    centered_string(screen,Bigfont, r2.y + r2.h - font_height(Bigfont),
+            exitmsg, font_color_red);
+    SDL_UpdateRect (screen, r1.x, r1.y, r1.w, r1.h);
+    wait_for_enter();
+
 }
 
 /* Translate joystick button press to keypress */
@@ -489,12 +535,12 @@ void joystick_button (SDL_JoyButtonEvent * btn) {
 }
 
 /* Translate joystick motion to keypress */
-void joystick_motion (SDL_JoyAxisEvent * axis, char plrmode) {
+void joystick_motion (SDL_JoyAxisEvent * axis, int plrmode) {
     SDL_Event event;
     int p, plr = -1;
     if (axis->axis > 1)
         return;                 /* Only the first two axises are handled */
-    if (abs (axis->value) > JSTRESHOLD) {
+    if (abs (axis->value) > 16384) {
         event.key.state = SDL_PRESSED;
         event.key.type = SDL_KEYDOWN;
     } else {
@@ -502,7 +548,7 @@ void joystick_motion (SDL_JoyAxisEvent * axis, char plrmode) {
         event.key.state = SDL_KEYUP;
     }
     for (p = 0; p < 4; p++)
-        if (game_settings.controller[p] - 1 == axis->which) {
+        if (game_settings.controller[p].number - 1 == axis->which) {
             plr = p;
             break;
         }
@@ -514,22 +560,22 @@ void joystick_motion (SDL_JoyAxisEvent * axis, char plrmode) {
         p++;
     if (p == 0) {
         if (plrmode && plr > -1)
-            event.key.keysym.sym = game_settings.buttons[plr][0];
+            event.key.keysym.sym = game_settings.controller[plr].keys[0];
         else
             event.key.keysym.sym = SDLK_UP;
     } else if (p == 1) {
         if (plrmode && plr > -1)
-            event.key.keysym.sym = game_settings.buttons[plr][1];
+            event.key.keysym.sym = game_settings.controller[plr].keys[1];
         else
             event.key.keysym.sym = SDLK_DOWN;
     } else if (p == 2) {
         if (plrmode && plr > -1)
-            event.key.keysym.sym = game_settings.buttons[plr][2];
+            event.key.keysym.sym = game_settings.controller[plr].keys[2];
         else
             event.key.keysym.sym = SDLK_LEFT;
     } else {
         if (plrmode && plr > -1)
-            event.key.keysym.sym = game_settings.buttons[plr][3];
+            event.key.keysym.sym = game_settings.controller[plr].keys[3];
         else
             event.key.keysym.sym = SDLK_RIGHT;
     }

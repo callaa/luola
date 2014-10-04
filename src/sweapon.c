@@ -25,7 +25,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "defines.h"
 #include "console.h"
 #include "sweapon.h"
 #include "particle.h"
@@ -37,17 +36,17 @@
 /* Homing missile. Seeks players */
 void missile_movement (Projectile * proj)
 {
-    int p, i1, i2;
     double f0, f1;
+    int p;
     make_particle (proj->x, proj->y, 5);
     p = find_nearest_player (proj->x, proj->y, proj->ownerteam, &f0);
     if (p == -1)
         return;
-    i1 = players[p].ship->x - proj->x;
-    i2 = players[p].ship->y - proj->y;
-    f1 = atan2 (i1, i2);
-    if ((players[p].ship->visible == 0 && players[p].ship->tagged == 0)
-        && f0 < 130)
+    /* If player is invisible, homing missile can only track it from afar */
+    if((players[p].ship->visible == 0 && (players[p].ship->tagged || f0 > 300)) ||
+            players[p].ship->visible)
+        f1 = atan2 (players[p].ship->x - proj->x, players[p].ship->y - proj->y);
+    else
         f1 = proj->angle;
     if (proj->angle < 0 && f1 > 0) {
         if ((f1 - proj->angle) > (fabs (-M_PI - proj->angle) + M_PI - f1))

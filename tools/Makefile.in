@@ -37,8 +37,7 @@ POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
 target_triplet = @target@
-noinst_PROGRAMS = mkecompact$(EXEEXT) ldat$(EXEEXT) lcmap$(EXEEXT) \
-	importlev$(EXEEXT)
+noinst_PROGRAMS = ldat$(EXEEXT) lcmap$(EXEEXT) importlev$(EXEEXT)
 subdir = tools
 DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
@@ -50,9 +49,8 @@ mkinstalldirs = $(SHELL) $(top_srcdir)/mkinstalldirs
 CONFIG_HEADER = $(top_builddir)/config.h
 CONFIG_CLEAN_FILES =
 PROGRAMS = $(noinst_PROGRAMS)
-am_importlev_OBJECTS = importlev.$(OBJEXT) lconf2bin.$(OBJEXT) \
-	ldat.$(OBJEXT) lconf.$(OBJEXT) stringutil.$(OBJEXT) \
-	sbmp.$(OBJEXT) lcmap.$(OBJEXT) im_vwing.$(OBJEXT) \
+am_importlev_OBJECTS = importlev.$(OBJEXT) ldat.$(OBJEXT) \
+	lcmap.$(OBJEXT) thumbnail.$(OBJEXT) im_vwing.$(OBJEXT) \
 	im_wings.$(OBJEXT) im_tou.$(OBJEXT)
 importlev_OBJECTS = $(am_importlev_OBJECTS)
 importlev_LDADD = $(LDADD)
@@ -60,14 +58,9 @@ am_lcmap_OBJECTS = lcmaptool.$(OBJEXT) lcmap.$(OBJEXT)
 lcmap_OBJECTS = $(am_lcmap_OBJECTS)
 lcmap_DEPENDENCIES =
 am_ldat_OBJECTS = ldatar.$(OBJEXT) archive.$(OBJEXT) ldat.$(OBJEXT) \
-	stringutil.$(OBJEXT)
+	parser.$(OBJEXT) list.$(OBJEXT)
 ldat_OBJECTS = $(am_ldat_OBJECTS)
 ldat_LDADD = $(LDADD)
-am_mkecompact_OBJECTS = mkecompact.$(OBJEXT) lconf2bin.$(OBJEXT) \
-	ldat.$(OBJEXT) lconf.$(OBJEXT) stringutil.$(OBJEXT) \
-	sbmp.$(OBJEXT)
-mkecompact_OBJECTS = $(am_mkecompact_OBJECTS)
-mkecompact_DEPENDENCIES =
 DEFAULT_INCLUDES = -I. -I$(srcdir) -I$(top_builddir)
 depcomp = $(SHELL) $(top_srcdir)/depcomp
 am__depfiles_maybe = depfiles
@@ -75,10 +68,8 @@ COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
 	$(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
 CCLD = $(CC)
 LINK = $(CCLD) $(AM_CFLAGS) $(CFLAGS) $(AM_LDFLAGS) $(LDFLAGS) -o $@
-SOURCES = $(importlev_SOURCES) $(lcmap_SOURCES) $(ldat_SOURCES) \
-	$(mkecompact_SOURCES)
-DIST_SOURCES = $(importlev_SOURCES) $(lcmap_SOURCES) $(ldat_SOURCES) \
-	$(mkecompact_SOURCES)
+SOURCES = $(importlev_SOURCES) $(lcmap_SOURCES) $(ldat_SOURCES)
+DIST_SOURCES = $(importlev_SOURCES) $(lcmap_SOURCES) $(ldat_SOURCES)
 ETAGS = etags
 CTAGS = ctags
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
@@ -169,21 +160,17 @@ target_cpu = @target_cpu@
 target_os = @target_os@
 target_vendor = @target_vendor@
 INCLUDES = @SDL_CFLAGS@ -I$(top_srcdir)/src
-EXTRA_DIST = README.tools vwing.lev wings.lev
-mkecompact_SOURCES = mkecompact.c lconf2bin.c lconf2bin.h \
-					$(top_srcdir)/src/ldat.c $(top_srcdir)/src/lconf.c \
-					$(top_srcdir)/src/stringutil.c $(top_srcdir)/src/sbmp.c
-
-mkecompact_LDADD = -lSDL_image
+EXTRA_DIST = README.tools vwing.lev wings.lev mkthumbnail.sh
 ldat_SOURCES = ldatar.c archive.c archive.h \
-			$(top_srcdir)/src/ldat.c $(top_srcdir)/src/stringutil.c
+			$(top_srcdir)/src/ldat.c $(top_srcdir)/src/parser.c \
+			$(top_srcdir)/src/list.c
 
 lcmap_SOURCES = lcmaptool.c $(top_srcdir)/src/lcmap.c
 lcmap_LDADD = -lSDL_image
-importlev_SOURCES = importlev.c importlev.h lconf2bin.c lconf2bin.h \
-					$(top_srcdir)/src/ldat.c $(top_srcdir)/src/lconf.c \
-					$(top_srcdir)/src/stringutil.c $(top_srcdir)/src/sbmp.c \
+importlev_SOURCES = importlev.c importlev.h \
+					$(top_srcdir)/src/ldat.c \
 					$(top_srcdir)/src/lcmap.c \
+					thumbnail.c thumbnail.h \
 					im_vwing.c im_vwing.h \
 					im_wings.c im_wings.h \
 					im_tou.c im_tou.h
@@ -233,9 +220,6 @@ lcmap$(EXEEXT): $(lcmap_OBJECTS) $(lcmap_DEPENDENCIES)
 ldat$(EXEEXT): $(ldat_OBJECTS) $(ldat_DEPENDENCIES) 
 	@rm -f ldat$(EXEEXT)
 	$(LINK) $(ldat_LDFLAGS) $(ldat_OBJECTS) $(ldat_LDADD) $(LIBS)
-mkecompact$(EXEEXT): $(mkecompact_OBJECTS) $(mkecompact_DEPENDENCIES) 
-	@rm -f mkecompact$(EXEEXT)
-	$(LINK) $(mkecompact_LDFLAGS) $(mkecompact_OBJECTS) $(mkecompact_LDADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
@@ -250,13 +234,11 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/importlev.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/lcmap.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/lcmaptool.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/lconf.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/lconf2bin.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ldat.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ldatar.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mkecompact.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sbmp.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/stringutil.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/list.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/parser.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/thumbnail.Po@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	if $(COMPILE) -MT $@ -MD -MP -MF "$(DEPDIR)/$*.Tpo" -c -o $@ $<; \
@@ -286,48 +268,6 @@ ldat.obj: $(top_srcdir)/src/ldat.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o ldat.obj `if test -f '$(top_srcdir)/src/ldat.c'; then $(CYGPATH_W) '$(top_srcdir)/src/ldat.c'; else $(CYGPATH_W) '$(srcdir)/$(top_srcdir)/src/ldat.c'; fi`
 
-lconf.o: $(top_srcdir)/src/lconf.c
-@am__fastdepCC_TRUE@	if $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT lconf.o -MD -MP -MF "$(DEPDIR)/lconf.Tpo" -c -o lconf.o `test -f '$(top_srcdir)/src/lconf.c' || echo '$(srcdir)/'`$(top_srcdir)/src/lconf.c; \
-@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/lconf.Tpo" "$(DEPDIR)/lconf.Po"; else rm -f "$(DEPDIR)/lconf.Tpo"; exit 1; fi
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(top_srcdir)/src/lconf.c' object='lconf.o' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o lconf.o `test -f '$(top_srcdir)/src/lconf.c' || echo '$(srcdir)/'`$(top_srcdir)/src/lconf.c
-
-lconf.obj: $(top_srcdir)/src/lconf.c
-@am__fastdepCC_TRUE@	if $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT lconf.obj -MD -MP -MF "$(DEPDIR)/lconf.Tpo" -c -o lconf.obj `if test -f '$(top_srcdir)/src/lconf.c'; then $(CYGPATH_W) '$(top_srcdir)/src/lconf.c'; else $(CYGPATH_W) '$(srcdir)/$(top_srcdir)/src/lconf.c'; fi`; \
-@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/lconf.Tpo" "$(DEPDIR)/lconf.Po"; else rm -f "$(DEPDIR)/lconf.Tpo"; exit 1; fi
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(top_srcdir)/src/lconf.c' object='lconf.obj' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o lconf.obj `if test -f '$(top_srcdir)/src/lconf.c'; then $(CYGPATH_W) '$(top_srcdir)/src/lconf.c'; else $(CYGPATH_W) '$(srcdir)/$(top_srcdir)/src/lconf.c'; fi`
-
-stringutil.o: $(top_srcdir)/src/stringutil.c
-@am__fastdepCC_TRUE@	if $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT stringutil.o -MD -MP -MF "$(DEPDIR)/stringutil.Tpo" -c -o stringutil.o `test -f '$(top_srcdir)/src/stringutil.c' || echo '$(srcdir)/'`$(top_srcdir)/src/stringutil.c; \
-@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/stringutil.Tpo" "$(DEPDIR)/stringutil.Po"; else rm -f "$(DEPDIR)/stringutil.Tpo"; exit 1; fi
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(top_srcdir)/src/stringutil.c' object='stringutil.o' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o stringutil.o `test -f '$(top_srcdir)/src/stringutil.c' || echo '$(srcdir)/'`$(top_srcdir)/src/stringutil.c
-
-stringutil.obj: $(top_srcdir)/src/stringutil.c
-@am__fastdepCC_TRUE@	if $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT stringutil.obj -MD -MP -MF "$(DEPDIR)/stringutil.Tpo" -c -o stringutil.obj `if test -f '$(top_srcdir)/src/stringutil.c'; then $(CYGPATH_W) '$(top_srcdir)/src/stringutil.c'; else $(CYGPATH_W) '$(srcdir)/$(top_srcdir)/src/stringutil.c'; fi`; \
-@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/stringutil.Tpo" "$(DEPDIR)/stringutil.Po"; else rm -f "$(DEPDIR)/stringutil.Tpo"; exit 1; fi
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(top_srcdir)/src/stringutil.c' object='stringutil.obj' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o stringutil.obj `if test -f '$(top_srcdir)/src/stringutil.c'; then $(CYGPATH_W) '$(top_srcdir)/src/stringutil.c'; else $(CYGPATH_W) '$(srcdir)/$(top_srcdir)/src/stringutil.c'; fi`
-
-sbmp.o: $(top_srcdir)/src/sbmp.c
-@am__fastdepCC_TRUE@	if $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT sbmp.o -MD -MP -MF "$(DEPDIR)/sbmp.Tpo" -c -o sbmp.o `test -f '$(top_srcdir)/src/sbmp.c' || echo '$(srcdir)/'`$(top_srcdir)/src/sbmp.c; \
-@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/sbmp.Tpo" "$(DEPDIR)/sbmp.Po"; else rm -f "$(DEPDIR)/sbmp.Tpo"; exit 1; fi
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(top_srcdir)/src/sbmp.c' object='sbmp.o' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o sbmp.o `test -f '$(top_srcdir)/src/sbmp.c' || echo '$(srcdir)/'`$(top_srcdir)/src/sbmp.c
-
-sbmp.obj: $(top_srcdir)/src/sbmp.c
-@am__fastdepCC_TRUE@	if $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT sbmp.obj -MD -MP -MF "$(DEPDIR)/sbmp.Tpo" -c -o sbmp.obj `if test -f '$(top_srcdir)/src/sbmp.c'; then $(CYGPATH_W) '$(top_srcdir)/src/sbmp.c'; else $(CYGPATH_W) '$(srcdir)/$(top_srcdir)/src/sbmp.c'; fi`; \
-@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/sbmp.Tpo" "$(DEPDIR)/sbmp.Po"; else rm -f "$(DEPDIR)/sbmp.Tpo"; exit 1; fi
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(top_srcdir)/src/sbmp.c' object='sbmp.obj' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o sbmp.obj `if test -f '$(top_srcdir)/src/sbmp.c'; then $(CYGPATH_W) '$(top_srcdir)/src/sbmp.c'; else $(CYGPATH_W) '$(srcdir)/$(top_srcdir)/src/sbmp.c'; fi`
-
 lcmap.o: $(top_srcdir)/src/lcmap.c
 @am__fastdepCC_TRUE@	if $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT lcmap.o -MD -MP -MF "$(DEPDIR)/lcmap.Tpo" -c -o lcmap.o `test -f '$(top_srcdir)/src/lcmap.c' || echo '$(srcdir)/'`$(top_srcdir)/src/lcmap.c; \
 @am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/lcmap.Tpo" "$(DEPDIR)/lcmap.Po"; else rm -f "$(DEPDIR)/lcmap.Tpo"; exit 1; fi
@@ -341,6 +281,34 @@ lcmap.obj: $(top_srcdir)/src/lcmap.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(top_srcdir)/src/lcmap.c' object='lcmap.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o lcmap.obj `if test -f '$(top_srcdir)/src/lcmap.c'; then $(CYGPATH_W) '$(top_srcdir)/src/lcmap.c'; else $(CYGPATH_W) '$(srcdir)/$(top_srcdir)/src/lcmap.c'; fi`
+
+parser.o: $(top_srcdir)/src/parser.c
+@am__fastdepCC_TRUE@	if $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT parser.o -MD -MP -MF "$(DEPDIR)/parser.Tpo" -c -o parser.o `test -f '$(top_srcdir)/src/parser.c' || echo '$(srcdir)/'`$(top_srcdir)/src/parser.c; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/parser.Tpo" "$(DEPDIR)/parser.Po"; else rm -f "$(DEPDIR)/parser.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(top_srcdir)/src/parser.c' object='parser.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o parser.o `test -f '$(top_srcdir)/src/parser.c' || echo '$(srcdir)/'`$(top_srcdir)/src/parser.c
+
+parser.obj: $(top_srcdir)/src/parser.c
+@am__fastdepCC_TRUE@	if $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT parser.obj -MD -MP -MF "$(DEPDIR)/parser.Tpo" -c -o parser.obj `if test -f '$(top_srcdir)/src/parser.c'; then $(CYGPATH_W) '$(top_srcdir)/src/parser.c'; else $(CYGPATH_W) '$(srcdir)/$(top_srcdir)/src/parser.c'; fi`; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/parser.Tpo" "$(DEPDIR)/parser.Po"; else rm -f "$(DEPDIR)/parser.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(top_srcdir)/src/parser.c' object='parser.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o parser.obj `if test -f '$(top_srcdir)/src/parser.c'; then $(CYGPATH_W) '$(top_srcdir)/src/parser.c'; else $(CYGPATH_W) '$(srcdir)/$(top_srcdir)/src/parser.c'; fi`
+
+list.o: $(top_srcdir)/src/list.c
+@am__fastdepCC_TRUE@	if $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT list.o -MD -MP -MF "$(DEPDIR)/list.Tpo" -c -o list.o `test -f '$(top_srcdir)/src/list.c' || echo '$(srcdir)/'`$(top_srcdir)/src/list.c; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/list.Tpo" "$(DEPDIR)/list.Po"; else rm -f "$(DEPDIR)/list.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(top_srcdir)/src/list.c' object='list.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o list.o `test -f '$(top_srcdir)/src/list.c' || echo '$(srcdir)/'`$(top_srcdir)/src/list.c
+
+list.obj: $(top_srcdir)/src/list.c
+@am__fastdepCC_TRUE@	if $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT list.obj -MD -MP -MF "$(DEPDIR)/list.Tpo" -c -o list.obj `if test -f '$(top_srcdir)/src/list.c'; then $(CYGPATH_W) '$(top_srcdir)/src/list.c'; else $(CYGPATH_W) '$(srcdir)/$(top_srcdir)/src/list.c'; fi`; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/list.Tpo" "$(DEPDIR)/list.Po"; else rm -f "$(DEPDIR)/list.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(top_srcdir)/src/list.c' object='list.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o list.obj `if test -f '$(top_srcdir)/src/list.c'; then $(CYGPATH_W) '$(top_srcdir)/src/list.c'; else $(CYGPATH_W) '$(srcdir)/$(top_srcdir)/src/list.c'; fi`
 uninstall-info-am:
 
 ID: $(HEADERS) $(SOURCES) $(LISP) $(TAGS_FILES)

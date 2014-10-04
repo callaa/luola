@@ -26,8 +26,36 @@
 
 #include "SDL.h"
 
+#include "defines.h"
 #include "game.h"
 #include "vector.h"
+
+/* Luola palette */
+#define TER_FREE        0
+#define TER_GROUND      1
+#define TER_UNDERWATER  2
+#define TER_INDESTRUCT  3
+#define TER_WATER       4
+#define TER_BASE        5
+#define TER_EXPLOSIVE   6
+#define TER_EXPLOSIVE2  7
+#define TER_WATERFU     8
+#define TER_WATERFR     9
+#define TER_WATERFD     10
+#define TER_WATERFL     11
+#define TER_COMBUSTABLE 12
+#define TER_COMBUSTABL2 13
+#define TER_SNOW        14
+#define TER_ICE         15
+#define TER_BASEMAT     16
+#define TER_TUNNEL      17
+#define TER_WALKWAY     18
+#define LAST_TER        18
+
+/* Fire animation */
+#define FIRE_FRAMES     26
+#define FIRE_SPREAD     17
+#define FIRE_RANDOM     17
 
 typedef enum { Fire, Ice, Earth, Explosive, Melt } LevelFXType;
 

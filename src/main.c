@@ -26,7 +26,6 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "defines.h"
 #include "fs.h"
 #include "console.h"
 #include "intro.h"
@@ -35,21 +34,18 @@
 #include "hotseat.h"
 #include "level.h"
 #include "player.h"
-#include "particle.h"
 #include "weapon.h"
 #include "animation.h"
 #include "special.h"
 #include "critter.h"
-#include "weather.h"
 #include "ship.h"
 #include "font.h"
 #include "demo.h"
+#include "selection.h"
 #include "startup.h"
-
-#if HAVE_LIBSDL_MIXER
 #include "audio.h"
-#endif
 
+/* Show version info */
 static void show_version (void) {
     const SDL_version *sdld;
     sdld = SDL_Linked_Version ();
@@ -80,6 +76,28 @@ static void show_version (void) {
     exit (0);
 }
 
+/* Do initializations that require datafiles */
+static int load_data(void) {
+    LDAT *graphics;
+    graphics = ldat_open_file(getfullpath(DATA_DIRECTORY,"gfx.ldat"));
+    if(graphics==NULL)
+        return 1;
+
+    init_critters(graphics);
+    init_intro(graphics);
+    init_game(graphics);
+    init_selection(graphics);
+    init_players(graphics);
+    init_pilots(graphics);
+    init_ships(graphics);
+    init_specials(graphics);
+    init_weapons(graphics);
+
+    ldat_free(graphics);
+
+    return 0;
+}
+
 int main (int argc, char *argv[]) {
     int rval, r;
     /* Parse command line arguments */
@@ -91,53 +109,39 @@ int main (int argc, char *argv[]) {
                 return 0;
             } else if (strcmp (argv[r], "--version") == 0)
                 show_version ();
-#ifdef CHEAT_POSSIBLE
-            else if (strcmp (argv[r], "--cheat") == 0) {
-                cheat = 1;
-                cheat1 = 0;
-                printf ("Cheat er.. Debug mode enabled\n");
-            }
-#endif
             else if ((r = parse_argument (r, argc, argv)) == 0)
                 return 0;
         }
     }
     /* Check if luola's home directory exists */
     check_homedir ();
+
     /* Seed the random number generator */
     srand (time (NULL));
+
     /* Initialize */
     init_sdl ();
     init_video ();
-#if HAVE_LIBSDL_MIXER
+
     if (luola_options.sounds)
         init_audio ();
-#endif
+
     if(init_font()) return 1;
-    init_level();
-    init_particles();
-    if(init_intro()) return 1;
-    if(init_game()) return 1;
-    if(init_weapons()) return 1;
-    if(init_players()) return 1;
-    if(init_ships()) return 1;
-    if(init_pilots()) return 1;
-    if(init_hotseat()) return 1;
-    if(init_specials()) return 1;
-    if(init_critters()) return 1;
-    init_weather();
-    if (luola_options.mbg_anim)
-        init_demos ();
+    if(load_data()) return 1;
+
     scan_levels(0);
     scan_levels(1);
     if (game_settings.levels == NULL)
         no_levels_found ();
-    load_game_config ();
 
-#if HAVE_LIBSDL_MIXER
+    init_level();
+    init_hotseat();
+    if (luola_options.mbg_anim)
+        init_demos ();
+
     /* Set sound effect volume */
     audio_setsndvolume(game_settings.sound_vol);
-#endif
+
     /* Enable key repeat (useful in menus. Will be disabled during game) */
     SDL_EnableKeyRepeat(SDL_DEFAULT_REPEAT_DELAY,SDL_DEFAULT_REPEAT_INTERVAL);
 

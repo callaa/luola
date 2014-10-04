@@ -25,16 +25,18 @@
 #define L_LEVELFILE_H
 
 #include "lconf.h"
+#include "ldat.h"
 
 typedef enum { LEV_UNKNOWN, LEV_NORMAL, LEV_COMPACT} LevelFormat;
 
 struct LevelFile {
     char *filename;             /* Level filename */
+    LDAT *ldat;                 /* Handle to compact level data */
+    int index;                  /* Index number for compact levels */
 
     LevelFormat type;           /* Level type (normal or compact) */
-    int user;                   /* Is the level in user directory */
 
-    LevelSettings *settings;    /* Level settings */
+    struct LevelSettings *settings;    /* Level settings */
 };
 
 /* Scan the directory pointed by 'dirname' for levels */
@@ -43,9 +45,15 @@ extern int scan_levels (int user);
 /* Show the "No levels found" error screen and exit */
 extern void no_levels_found (void);
 
+/* Prepare a level for reading (only affects compact levels) */
+extern int open_level(struct LevelFile *level);
+
+/* Close a level opened with open_level */
+extern void close_level(struct LevelFile *level);
+
 /* Load the artwork and collisionmap */
 /* They are automatically scaled according to */
-/* their scalex and scaley values */
+/* their zoom and aspect values */
 
 /* Loads the level artwork file from a file */
 /* The surface returned is in the same format as the screen */

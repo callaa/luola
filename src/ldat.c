@@ -25,6 +25,7 @@
 #include <string.h>
 #include <stdlib.h>
 
+#include "SDL.h"
 #include "SDL_endian.h"
 
 #include "ldat.h"
@@ -58,6 +59,26 @@ int Luola_ReadLE32(SDL_RWops *src,Uint32 *value)
 
 #endif
 
+/* Check if a file is an LDAT archive */
+int is_ldat(const char *filename)
+{
+    char buffer[6];
+    FILE *fp;
+    fp = fopen(filename,"rb");
+    if(!fp) {
+        perror(filename);
+        return 0;
+    }
+    if(fread(buffer,1,sizeof(buffer),fp)!=sizeof(buffer)) {
+        fclose(fp);
+        return 0;
+    }
+    fclose(fp);
+    if(memcmp(buffer,"LDAT",4)==0 && buffer[4]<10 && buffer[5]<10)
+        return 1;
+    return 0;
+}
+
 /* Create an empty LDAT structure */
 LDAT *ldat_create (void)
 {
@@ -80,45 +101,45 @@ LDAT *ldat_open_rw (SDL_RWops * rw)
     /* Read header */
     SDL_RWread (newldat->data, header, 1, LDAT_MAGIC_LEN);
     if (strncmp (header, "LDAT", 4)) {
-        printf ("Error: this is not an LDAT archive !\n");
+        fprintf (stderr,"Error: this is not an LDAT archive !\n");
         return NULL;
     }
     if (header[4] != LDAT_MAJOR) {
-        printf ("Error: Unsupported version (%d.%d) !\n", header[4],
+        fprintf (stderr, "Error: Unsupported version (%d.%d) !\n", header[4],
                 header[5]);
-        printf ("Latest supported version is %d.%d\n", LDAT_MAJOR,
+        fprintf (stderr, "Latest supported version is %d.%d\n", LDAT_MAJOR,
                 LDAT_MINOR);
         return NULL;
     }
     /* Read catalog */
     if(Luola_ReadLE16 (newldat->data,&itemcount) == -1) {
-        printf("Error occured while reading itemcount!\n");
+        fprintf(stderr,"Error occured while reading itemcount!\n");
     }
 
     for (i = 0; i < itemcount; i++) {
         newblock = malloc (sizeof (LDAT_Block));
         memset (newblock, 0, sizeof (LDAT_Block));
         if (SDL_RWread (newldat->data, &idlen, 1, 1) == -1) {
-            printf ("(%d) Error occured while reading idlen!\n", i);
+            fprintf (stderr, "(%d) Error occured while reading idlen!\n", i);
             return NULL;
         }
         newblock->ID = malloc (idlen + 1);
         if (SDL_RWread (newldat->data, newblock->ID, 1, idlen) == -1) {
-            printf ("(%d) Error occured while reading ID string!\n", i);
+            fprintf (stderr, "(%d) Error occured while reading ID string!\n", i);
             return NULL;
         }
         newblock->ID[idlen] = '\0';
         if (Luola_ReadLE16(newldat->data, &newblock->index) == -1) {
-            printf ("(%d) Error occured while reading index number!\n", i);
+            fprintf (stderr, "(%d) Error occured while reading index number!\n", i);
             return NULL;
         }
 
         if (Luola_ReadLE32(newldat->data, &newblock->pos) == -1) {
-            printf ("(%d) Error occured while reading position!\n", i);
+            fprintf (stderr, "(%d) Error occured while reading position!\n", i);
             return NULL;
         }
         if (Luola_ReadLE32(newldat->data, &newblock->size) == -1) {
-            printf ("(%d) Error occured while reading size!\n", i);
+            fprintf (stderr, "(%d) Error occured while reading size!\n", i);
             return NULL;
         }
         if (newldat->catalog == NULL)
@@ -142,7 +163,7 @@ LDAT *ldat_open_file (const char *filename)
     SDL_RWops *rw;
     rw = SDL_RWFromFile (filename, "rb");
     if (rw == NULL) {
-        printf ("Error! Could not open file \"%s\"\n", filename);
+        fprintf (stderr, "Could not open file \"%s\"\n", filename);
         return NULL;
     }
     return ldat_open_rw (rw);
@@ -179,10 +200,8 @@ void ldat_put_item (LDAT * ldat,char *id, int item, SDL_RWops * data,
     catalog = ldat->catalog;
     if (catalog)
         while (catalog->next) {
-            if (strcmp (catalog->ID, id) == 0 && catalog->index == item)
-                printf
-                    ("Warning: Already found an entry with ID \"%s\" and index %d!\n",
-                     id, item);
+            if (catalog->index == item && strcmp (catalog->ID, id) == 0)
+                fprintf (stderr,"Warning: Already found an entry with ID \"%s\" and index %d!\n", id, item);
             catalog = catalog->next;
         }
     newitem = malloc (sizeof (LDAT_Block));
@@ -215,21 +234,27 @@ static void ldat_fixup (LDAT * ldat)
 }
 
 /* Copy from one SDL_RWops to another */
-static void rw_to_rw_copy (SDL_RWops * dest, SDL_RWops * src, Uint32 len)
+static int rw_to_rw_copy (SDL_RWops * dest, SDL_RWops * src, Uint32 len)
 {
-    Uint8 *buffer;
+    Uint8 buffer[1024];
     Uint32 copied = 0, read, toread;
-    buffer = malloc (1024);     /* Buffer size */
     while (copied < len) {
-        if (len - copied < 1024)
+        if (len - copied < sizeof(buffer))
             toread = len - copied;
         else
-            toread = 1024;
+            toread = sizeof(buffer);
         read = SDL_RWread (src, buffer, 1, toread);
-        SDL_RWwrite (dest, buffer, 1, read);
+        if(read==0) {
+            fprintf(stderr,"rw_to_rw_copy:%d: %s\n",read, SDL_GetError());
+            return 1;
+        }
+        if(SDL_RWwrite (dest, buffer, 1, read)==0) {
+            fprintf(stderr,"rw_to_rw_copy:%d: %s\n",read, SDL_GetError());
+            return 1;
+        }
         copied += read;
     }
-    free (buffer);
+    return 0;
 }
 
 /* Save LDAT into an SDL_RWops */
@@ -257,7 +282,11 @@ int ldat_save_rw (LDAT * ldat, SDL_RWops * rw)
     /* Write data */
     block = ldat->catalog;
     while (block) {
-        rw_to_rw_copy (rw, block->data, block->size);
+        if(rw_to_rw_copy (rw, block->data, block->size)) {
+            fprintf(stderr,"Error occured in block \"%s\" %d\n",
+                    block->ID,block->index);
+            return 1;
+        }
         block = block->next;
     }
     return 0;
@@ -284,11 +313,24 @@ LDAT_Block *ldat_find_item (const LDAT * ldat, const char *id, int item)
 {
     LDAT_Block *block = ldat->catalog;
     while (block) {
-        if (strcmp (block->ID, id) == 0 && block->index == item)
+        if (block->index == item && strcmp (block->ID, id) == 0)
             return block;
         block = block->next;
     }
     return NULL;
+}
+
+/* Get the number of items with the same ID */
+int ldat_get_item_count (const LDAT * ldat, const char *id)
+{
+    LDAT_Block *block = ldat->catalog;
+    int count=0;
+    while (block) {
+        if (strcmp (block->ID, id) == 0)
+            count++;
+        block = block->next;
+    }
+    return count;
 }
 
 /* Get a file from the archive */
@@ -298,7 +340,7 @@ SDL_RWops *ldat_get_item (const LDAT * ldat,const char *id, int item)
     SDL_RWops *data;
     block = ldat_find_item (ldat, id, item);
     if (!block) {
-        printf ("Error! Item with ID \"%s\" and index %d was not found\n",
+        fprintf (stderr,"Item with ID \"%s\" and index %d was not found\n",
                 id, item);
         return NULL;
     }
@@ -312,14 +354,9 @@ SDL_RWops *ldat_get_item (const LDAT * ldat,const char *id, int item)
 /* Get the length of the item */
 int ldat_get_item_length (const LDAT * ldat,const char *id, int item)
 {
-    LDAT_Block *block = ldat->catalog;
-    while (block) {
-        if (strcmp (block->ID, id) == 0 && block->index == item)
-            break;
-        block = block->next;
-    }
+    LDAT_Block *block = ldat_find_item(ldat, id, item);
     if (!block) {
-        printf ("Error! Item with ID \"%s\" and index %d was not found\n",
+        fprintf (stderr,"Item with ID \"%s\" and index %d was not found\n",
                 id, item);
         return 0;
     }

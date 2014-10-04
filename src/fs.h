@@ -30,38 +30,44 @@
 #include "ldat.h"
 
 /* Directories */
-typedef enum {GFX_DIRECTORY,FONT_DIRECTORY,LEVEL_DIRECTORY,
-    USERLEVEL_DIRECTORY,HOME_DIRECTORY,SND_DIRECTORY} DataDir;
+typedef enum {DATA_DIRECTORY,FONT_DIRECTORY,LEVEL_DIRECTORY,
+    USERLEVEL_DIRECTORY,HOME_DIRECTORY} DataDir;
+
+/* Image transparency types */
+/* T_OPAQUE   - no transparency but image is converted to screen format */
+/* T_ALPHA    - use image alpha channel */
+/* T_COLORKEY - use topleft pixel as colorkey */
+/* T_NONE     - no transparency, image is left as it is */
+typedef enum {T_OPAQUE, T_ALPHA, T_COLORKEY,T_NONE } Transparency;
 
 /* Get the full path */
 extern const char *getfullpath (DataDir dir, const char *filename);
 
+/* Return file2 with file1's path */
+extern const char *samepath(const char *file1, const char *file2);
+
 /* Check if home directory exists and create if it doesn't */
 extern void check_homedir (void);
 
-/* Read datafiles */
-/* if enableAlpha is 1, the alpha channel will be loaded properly. */
-/* if it is 2, colorkey will be set to the topleft pixel. */
-extern SDL_Surface *load_image (char dir,const char *filename, char allownull,
-                                signed char enableAlpha);
+/* Load an image */
+extern SDL_Surface *load_image (const char *filename, int allownull,
+                                Transparency transparency);
 
 /* This function loads the image from SDL_RWops */
-extern SDL_Surface *load_image_rw (SDL_RWops * rw, char allownull,
-                                   signed char enableAlpha);
-
-/* This function loads an image supported by luola directly */
-extern SDL_Surface *load_luola_image_rw (SDL_RWops * rw);
+extern SDL_Surface *load_image_rw (SDL_RWops * rw, int allownull,
+                                   Transparency transparency);
 
 /* This function loads an list of images from a Luola Datafile */
-extern SDL_Surface **load_image_array (LDAT * datafile, char allownull,
-                                       char enableAlpha, char *id, int first,
-                                       int last);
+extern SDL_Surface **load_image_array (LDAT * datafile, int allownull,
+                                       Transparency transparency,
+                                       const char *id, int first, int last);
 
 /* This is a convenience function to load an image from a datafile */
-extern SDL_Surface *load_image_ldat (LDAT * datafile, char allownull,
-                                     char enableAlpha, char *id, int index);
+extern SDL_Surface *load_image_ldat (LDAT * datafile, int allownull,
+                                     Transparency transparency,
+                                     const char *id, int index);
 
-/* Take a screenshot */
+/* Take a screenshot and save it in the home folder*/
 extern void screenshot (void);
 
 #endif

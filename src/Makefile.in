@@ -52,16 +52,15 @@ am__installdirs = "$(DESTDIR)$(bindir)"
 binPROGRAMS_INSTALL = $(INSTALL_PROGRAM)
 PROGRAMS = $(bin_PROGRAMS)
 am_luola_OBJECTS = console.$(OBJEXT) list.$(OBJEXT) parser.$(OBJEXT) \
-	fs.$(OBJEXT) stringutil.$(OBJEXT) SFont.$(OBJEXT) \
-	level.$(OBJEXT) player.$(OBJEXT) ship.$(OBJEXT) \
-	vector.$(OBJEXT) animation.$(OBJEXT) particle.$(OBJEXT) \
-	weapon.$(OBJEXT) sweapon.$(OBJEXT) intro.$(OBJEXT) \
-	game.$(OBJEXT) levelfile.$(OBJEXT) special.$(OBJEXT) \
-	critter.$(OBJEXT) pilot.$(OBJEXT) weather.$(OBJEXT) \
-	audio.$(OBJEXT) font.$(OBJEXT) menu.$(OBJEXT) \
-	hotseat.$(OBJEXT) startup.$(OBJEXT) demo.$(OBJEXT) \
-	ldat.$(OBJEXT) lconf.$(OBJEXT) lcmap.$(OBJEXT) sbmp.$(OBJEXT) \
-	main.$(OBJEXT)
+	fs.$(OBJEXT) SFont.$(OBJEXT) level.$(OBJEXT) player.$(OBJEXT) \
+	ship.$(OBJEXT) vector.$(OBJEXT) animation.$(OBJEXT) \
+	particle.$(OBJEXT) weapon.$(OBJEXT) sweapon.$(OBJEXT) \
+	intro.$(OBJEXT) game.$(OBJEXT) levelfile.$(OBJEXT) \
+	special.$(OBJEXT) critter.$(OBJEXT) pilot.$(OBJEXT) \
+	weather.$(OBJEXT) audio.$(OBJEXT) font.$(OBJEXT) \
+	menu.$(OBJEXT) hotseat.$(OBJEXT) selection.$(OBJEXT) \
+	startup.$(OBJEXT) demo.$(OBJEXT) ldat.$(OBJEXT) \
+	lconf.$(OBJEXT) lcmap.$(OBJEXT) main.$(OBJEXT)
 luola_OBJECTS = $(am_luola_OBJECTS)
 luola_DEPENDENCIES =
 DEFAULT_INCLUDES = -I. -I$(srcdir) -I$(top_builddir)
@@ -166,7 +165,6 @@ INCLUDES = @SDL_CFLAGS@ -Wall -g -DPACKAGE_DATA_DIR="\"$(datadir)/$(PACKAGE)\""
 luola_LDADD = @SDL_LIBS@
 luola_SOURCES = \
 	defines.h \
-	hole.h \
 	number.h \
 	console.c \
 	console.h \
@@ -176,8 +174,6 @@ luola_SOURCES = \
 	parser.h \
 	fs.c \
 	fs.h \
-	stringutil.c \
-	stringutil.h \
 	SFont.c \
 	SFont.h \
 	level.c \
@@ -218,6 +214,8 @@ luola_SOURCES = \
 	menu.h \
 	hotseat.c \
 	hotseat.h \
+	selection.c \
+	selection.h \
 	startup.c \
 	startup.h \
 	demo.c \
@@ -228,8 +226,6 @@ luola_SOURCES = \
 	lconf.h \
 	lcmap.h \
 	lcmap.c \
-	sbmp.h \
-	sbmp.c \
 	main.c
 
 all: all-am
@@ -321,11 +317,10 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/particle.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/pilot.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/player.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sbmp.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/selection.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ship.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/special.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/startup.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/stringutil.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sweapon.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/vector.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/weapon.Po@am__quote@

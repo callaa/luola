@@ -136,7 +136,7 @@ static int write_pcx(const char *filename) {
 /*
  * Write out level configuration file
  */
-static int write_cfg(const char *collmap,const char *filename) {
+static int write_cfg(const char *collmap,const char *thumbnail,const char *filename) {
     FILE *fp;
     fp = fopen(filename,"w");
     if(!fp) {
@@ -147,10 +147,10 @@ static int write_cfg(const char *collmap,const char *filename) {
     fprintf(fp,"# V-Wing level configuration file generated with importlev\n");
     fprintf(fp,"[main]\n");
     fprintf(fp,"collisionmap = %s\n",collmap);
+    fprintf(fp,"thumbnail = %s\n",thumbnail);
     fprintf(fp,"name = %s\n",levelname);
     fprintf(fp,"aspect = 1.6\n");
     fprintf(fp,"zoom = 2\n");
-    fprintf(fp,"[end]\n\n");
     fprintf(fp,"# Support for the V-Wing 1.91 palette format\n");
     fprintf(fp,"[palette]\n");
     fprintf(fp,"2-247 = ground\n"
@@ -170,46 +170,7 @@ static int write_cfg(const char *collmap,const char *filename) {
             "203 = ice\n"
             "204-219 = underwater\n"
             "221-243 = indestructable\n"
-            "248-255 = indestructable\n"
-            "[end]\n\n");
-    fprintf(fp,"[icon]\n");
-    fprintf(fp,"/* XPM */\n"
-            "static char * vwing_xpm[] = {\n"
-            "\"42 30 3 1\",\n"
-            "\"       c None\",\n"
-            "\".      c #000000\",\n"
-            "\"+      c #FFFFFF\",\n"
-            "\"            .               .             \",\n"
-            "\"           .+.             .+.            \",\n"
-            "\"           .++.           .++.            \",\n"
-            "\"           .+++.         .+++.            \",\n"
-            "\"            .+++..     ..+++.             \",\n"
-            "\"            .+++++.   .+++++.             \",\n"
-            "\"            .+++++.   .+++++.             \",\n"
-            "\"             .++++.   .++++.              \",\n"
-            "\"             .+++++. .+++++.              \",\n"
-            "\"              .++++. .++++.               \",\n"
-            "\"              .++++. .++++.        ..     \",\n"
-            "\"              .+++++.+++++.      ..++.    \",\n"
-            "\"               .++++.++++.      .++++.    \",\n"
-            "\" .             .++++.++++.     .+++++.    \",\n"
-            "\".+.            .+++++++++..   .++++..     \",\n"
-            "\".++.            .+++++++..+. .++++.       \",\n"
-            "\".+++.           .++++++..++. .++++.       \",\n"
-            "\".++++.        ..+.+++++..++..++++.        \",\n"
-            "\" .+++.       .+.+..+++. .++..++++.        \",\n"
-            "\" .+++.      .++.++..+.+..++..++++.        \",\n"
-            "\" .++++.     .++.+++..+++.++..+++.......   \",\n"
-            "\"  .+++.    .+++.+++.+++++++.++++.++++++.  \",\n"
-            "\"  .++++. . .++..+++.+++++++.++++...+++++. \",\n"
-            "\"   .+++..+.+++..+++.+++++++.++++.  .+++++.\",\n"
-            "\"   .+++.++++++..+++.++.++++.++++.  .+++++.\",\n"
-            "\"    .++++++++. .+++.++..+++..++++...++++. \",\n"
-            "\"    .++++++++. .+++.++. .++. .+++++++++.  \",\n"
-            "\"     .+++.++.  .+++.++. .++. .++++++++.   \",\n"
-            "\"      .+. .+.  .+++.++. .++.  .++++++.    \",\n"
-            "\"       .   .   ........ ....   ......     \"};\n");
-    fprintf(fp,"[end]\n");
+            "248-255 = indestructable\n");
 
     fclose(fp);
     return 0;
@@ -221,7 +182,7 @@ static int write_cfg(const char *collmap,const char *filename) {
  * lcmap option is not used for this type of level
  */
 static struct Files save_level(const char *basename,int lcmap) {
-    static char pcxfile[PATH_MAX],cfgfile[PATH_MAX];
+    static char pcxfile[PATH_MAX],thumbnailfile[PATH_MAX],cfgfile[PATH_MAX];
     struct Files result;
     
     if(lcmap) {
@@ -231,16 +192,19 @@ static struct Files save_level(const char *basename,int lcmap) {
     strcat(pcxfile,".luola.pcx");
     strcpy(cfgfile,basename);
     strcat(cfgfile,".luola.lev");
+    strcpy(thumbnailfile,basename);
+    strcat(thumbnailfile,".thumb.png");
 
     result.failed=0;
     result.artwork=NULL;
     result.collmap=pcxfile;
     result.cfgfile=cfgfile;
+    result.thumbnail=thumbnailfile;
 
     if(write_pcx(pcxfile)) {
         result.failed = 1;
     } else {
-        if(write_cfg(pcxfile,cfgfile)) {
+        if(write_cfg(pcxfile,thumbnailfile,cfgfile)) {
             remove(pcxfile);
             result.failed=1;
         }
@@ -255,7 +219,7 @@ static struct Files save_level(const char *basename,int lcmap) {
 struct Importer register_vwing(void) {
     struct Importer i;
     i.name = "V-Wing";
-    i.need_sdl = 0;
+    i.aspect = 1.6;
     i.check_format = check_format;
     i.load_level = load_level;
     i.unload_level = unload_level;

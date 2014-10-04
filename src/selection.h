@@ -1,9 +1,9 @@
 /*
  * Luola - 2D multiplayer cavern-flying game
- * Copyright (C) 2001-2005 Calle Laakkonen
+ * Copyright (C) 2005 Calle Laakkonen
  *
- * File        : stringutil.h
- * Description : Miscallenous string operations
+ * File        : selection.h
+ * Description : Level/weapon selection screens
  * Author(s)   : Calle Laakkonen
  *
  * Luola is free software; you can redistribute it and/or modify
@@ -21,20 +21,22 @@
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  */
 
-#ifndef STRINGUTIL_H
-#define STRINGUTIL_H
+#ifndef SELECTION_H
+#define SELECTION_H
 
-/* Remove whitespace from beginning and end of the string */
-extern char *strip_white_space (const char *str);
+#include "levelfile.h"
 
-/* Split a string in two parts. Whitespace is removed */
-extern int split_string (char *str, char delim, char **left, char **right);
+/* Load trophy images. */
+extern int init_selection(LDAT *trophies);
 
-extern const char *controller_name (int type);
-extern const char *weap2str (int weapon);
-extern const char *sweap2str (int weapon);
-extern const char *critical2str (int critical);
-extern const char *critter2str (int critter);
-extern int name2terrain(const char *name);
+/* Enter level selection screen */
+/* The level list from game_settings is used. */
+/* Returns 0 if user wishes to cancel level selection. */
+extern struct LevelFile *select_level(int fade);
+
+/* Weapon selection. Returns 1 when players have made their choices */
+/* or 0 if selection was cancelled. */
+extern int select_weapon(struct LevelFile *level);
 
 #endif
+

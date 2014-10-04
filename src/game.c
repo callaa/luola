@@ -27,9 +27,8 @@
 #include <dirent.h>
 #include <SDL.h>
 
-#include "defines.h"
+#include "defines.h" /* GAME_SPEED */
 #include "startup.h"
-#include "stringutil.h"
 #include "console.h"
 #include "fs.h"
 #include "game.h"
@@ -47,52 +46,51 @@ static SDL_Surface *gam_filler;
 GameInfo game_settings;
 PerLevelSettings level_settings;
 GameStatus game_status;
-Uint8 game_loop;
+int game_loop;
 
-int init_game (void)
+static void load_game_config (void);
+
+/* Set default configuration values and load player screen filler images */
+void init_game (LDAT *miscfile)
 {
     int p;
-    LDAT *datafile;
-    datafile =
-        ldat_open_file (getfullpath (GFX_DIRECTORY, "misc.ldat"));
-    if(!datafile) return 1;
 
-    gam_filler = load_image_ldat (datafile, 1, 0, "FILLER", luola_options.videomode);
-    ldat_free (datafile);
+    gam_filler = load_image_ldat (miscfile, 1, T_OPAQUE, "FILLER", luola_options.videomode);
     if (gam_filler)
         recolor (gam_filler, 0.4, 0.4, 0.4, 1.0);
 
     /* Set up the default keys */
-    game_settings.buttons[0][0] = SDLK_w;
-    game_settings.buttons[0][1] = SDLK_s;
-    game_settings.buttons[0][2] = SDLK_a;
-    game_settings.buttons[0][3] = SDLK_d;
-    game_settings.buttons[0][4] = SDLK_LSHIFT;
-    game_settings.buttons[0][5] = SDLK_LCTRL;
+    game_settings.controller[0].keys[0] = SDLK_w;
+    game_settings.controller[0].keys[1] = SDLK_s;
+    game_settings.controller[0].keys[2] = SDLK_a;
+    game_settings.controller[0].keys[3] = SDLK_d;
+    game_settings.controller[0].keys[4] = SDLK_LSHIFT;
+    game_settings.controller[0].keys[5] = SDLK_LCTRL;
 
-    game_settings.buttons[1][0] = SDLK_UP;
-    game_settings.buttons[1][1] = SDLK_DOWN;
-    game_settings.buttons[1][2] = SDLK_LEFT;
-    game_settings.buttons[1][3] = SDLK_RIGHT;
-    game_settings.buttons[1][4] = SDLK_RSHIFT;
-    game_settings.buttons[1][5] = SDLK_RCTRL;
+    game_settings.controller[1].keys[0] = SDLK_UP;
+    game_settings.controller[1].keys[1] = SDLK_DOWN;
+    game_settings.controller[1].keys[2] = SDLK_LEFT;
+    game_settings.controller[1].keys[3] = SDLK_RIGHT;
+    game_settings.controller[1].keys[4] = SDLK_RSHIFT;
+    game_settings.controller[1].keys[5] = SDLK_RCTRL;
 
-    game_settings.buttons[2][0] = SDLK_i;
-    game_settings.buttons[2][1] = SDLK_k;
-    game_settings.buttons[2][2] = SDLK_j;
-    game_settings.buttons[2][3] = SDLK_l;
-    game_settings.buttons[2][4] = SDLK_y;
-    game_settings.buttons[2][5] = SDLK_h;
+    game_settings.controller[2].keys[0] = SDLK_i;
+    game_settings.controller[2].keys[1] = SDLK_k;
+    game_settings.controller[2].keys[2] = SDLK_j;
+    game_settings.controller[2].keys[3] = SDLK_l;
+    game_settings.controller[2].keys[4] = SDLK_y;
+    game_settings.controller[2].keys[5] = SDLK_h;
 
-    game_settings.buttons[3][0] = SDLK_KP8;
-    game_settings.buttons[3][1] = SDLK_KP5;
-    game_settings.buttons[3][2] = SDLK_KP4;
-    game_settings.buttons[3][3] = SDLK_KP6;
-    game_settings.buttons[3][4] = SDLK_KP1;
-    game_settings.buttons[3][5] = SDLK_KP2;
+    game_settings.controller[3].keys[0] = SDLK_KP8;
+    game_settings.controller[3].keys[1] = SDLK_KP5;
+    game_settings.controller[3].keys[2] = SDLK_KP4;
+    game_settings.controller[3].keys[3] = SDLK_KP6;
+    game_settings.controller[3].keys[4] = SDLK_KP1;
+    game_settings.controller[3].keys[5] = SDLK_KP2;
 
     for (p = 0; p < 4; p++) {
-        game_settings.controller[p] = Keyboard;
+        game_settings.controller[p].number = 0;
+        game_settings.controller[p].device = NULL;
     }
     game_settings.ship_collisions = 1;
     game_settings.ls.indstr_base = 0;
@@ -112,38 +110,36 @@ int init_game (void)
     game_settings.ls.snowfall = 0;
     game_settings.ls.stars = 1;
     game_settings.endmode = 0;
-    game_settings.levelcount = 0;
     game_settings.levels = NULL;
-    game_settings.first_level = NULL;
-    game_settings.last_level = NULL;
     game_settings.gravity_bullets = 1;
     game_settings.wind_bullets = 0;
     game_settings.large_bullets = 0;
     game_settings.weapon_switch = 0;
     game_settings.eject = 1;
     game_settings.explosions = 1;
-    game_settings.holesize = 2;
     game_settings.recall = 0;
     game_settings.criticals = 0;
     game_settings.bigscreens = 1;
 
     game_settings.sounds = 0;
     game_settings.music = 0;
-    game_settings.playlist = 0;
+    game_settings.playlist = PLS_ORDERED;
     game_settings.sound_vol = 128;
     game_settings.music_vol = 128;
 
     /* Set the temporary settings */
     game_settings.mbg_anim = luola_options.mbg_anim;
 
-    return 0;
+    /* Load the configuration file */
+    load_game_config();
 }
 
+/* Reset player and game states for a new game */
 void reset_game (void)
 {
     int p;
     for (p = 0; p < 4; p++) {
-        game_settings.players_in[p] = ' ';
+        players[p].state = INACTIVE;
         game_status.wins[p] = 0;
         game_status.lifetime[p] = 0;
         player_teams[p] = p;
@@ -153,23 +149,12 @@ void reset_game (void)
     game_status.lastwin = 0;
 }
 
-void prematch_game (void)
-{
-    /* Randomize level */
-    int r, n;
-    n = rand () % (game_settings.levelcount);
-    for (r = -1; r < n; r++)
-        if (game_settings.levels->next == NULL)
-            game_settings.levels = game_settings.first_level;
-        else
-            game_settings.levels = game_settings.levels->next;
-}
-
-void apply_per_level_settings (LevelSettings * settings)
+/* Override current settings with the ones set in the level */
+void apply_per_level_settings (struct LevelSettings * settings)
 {
     level_settings = game_settings.ls;
     if (settings->override) {
-        LSB_Override *o=settings->override;
+        struct LSB_Override *o=settings->override;
         if(o->indstr_base>=0) level_settings.indstr_base=o->indstr_base;
         if(o->critters>=0) level_settings.critters=o->critters;
         if(o->stars>=0) level_settings.stars=o->stars;
@@ -331,10 +316,7 @@ void game_statistics (void)
 
 /* Draw the luola logo on all screen quarters.
  * Active player screens will just draw over it. */
-void fill_unused_player_screens (void)
-{
-    SDL_FillRect (screen, NULL, 0);
-
+void fill_player_screens (void) {
     if (gam_filler) {
         SDL_Rect rect;
         int p;
@@ -348,6 +330,8 @@ void fill_unused_player_screens (void)
                 rect.x -= screen->w;
             }
         }
+    } else {
+        SDL_FillRect (screen, NULL, 0);
     }
     SDL_UpdateRect (screen, 0, 0, 0, 0);
 }
@@ -363,9 +347,6 @@ void game_eventloop (void) {
             switch (Event.type) {
             case SDL_KEYDOWN:
                 /* Key down event */
-#ifdef CHEAT_POSSIBLE
-                if (cheat) cheatcode (Event.key.keysym.sym);
-#endif
                 if (Event.key.keysym.sym == SDLK_ESCAPE) return;
                 else if (Event.key.keysym.sym == SDLK_F1)
                     radars_visible = !radars_visible;
@@ -410,6 +391,8 @@ void game_eventloop (void) {
             case SDL_JOYAXISMOTION:
                 player_joyaxishandler (&Event.jaxis);
                 break;
+            case SDL_QUIT:
+                exit(0);
             default:
                 break;
             }
@@ -433,7 +416,7 @@ void save_game_config (void)
     int p, k;
     FILE *fp;
     const char *filename;
-    filename = getfullpath (HOME_DIRECTORY, CONF_FILE);
+    filename = getfullpath (HOME_DIRECTORY, "luola.cfg");
     fp = fopen (filename, "w");
     if (!fp) {
         printf ("Error! Cannot open file \"%s\" for writing\n", filename);
@@ -442,13 +425,13 @@ void save_game_config (void)
     /* Write controllers */
     fprintf (fp, "[controllers]\n");
     for (p = 0; p < 4; p++) {
-        fprintf (fp, "%d=%d\n", p, game_settings.controller[p]);
+        fprintf (fp, "%d=%d\n", p, game_settings.controller[p].number);
     }
     /* Write keys */
     for (p = 0; p < 4; p++) {
         fprintf (fp, "[keys%d]\n", p + 1);
         for (k = 0; k < 6; k++) {
-            fprintf (fp, "%d=%d\n", k, game_settings.buttons[p][k]);
+            fprintf (fp, "%d=%d\n", k, game_settings.controller[p].keys[k]);
         }
     }
     /* Write settings */
@@ -478,7 +461,6 @@ void save_game_config (void)
     fprintf (fp, "weapon_switch=%d\n", game_settings.weapon_switch);
     fprintf (fp, "eject=%d\n", game_settings.eject);
     fprintf (fp, "explosions=%d\n", game_settings.explosions);
-    fprintf (fp, "holesize=%d\n", game_settings.holesize);
     fprintf (fp, "recall=%d\n", game_settings.recall);
     fprintf (fp, "criticalhits=%d\n", game_settings.criticals);
 
@@ -493,9 +475,9 @@ void save_game_config (void)
 
 /* Parse configuration file settings block */
 static void parse_settings_block(struct dllist *values) {
-    CfgPtrType types[33];
-    void *pointers[33];
-    char *keys[33];
+    CfgPtrType types[32];
+    void *pointers[32];
+    char *keys[32];
 
     keys[0]="ship_collisions";      types[0]=CFG_INT; pointers[0]=&game_settings.ship_collisions;
     keys[1]="indestructable_base";  types[1]=CFG_INT; pointers[1]=&game_settings.ls.indstr_base;
@@ -520,16 +502,15 @@ static void parse_settings_block(struct dllist *values) {
     keys[20]="weapon_switch";       types[20]=CFG_INT;pointers[20]=&game_settings.weapon_switch;
     keys[21]="eject";               types[21]=CFG_INT;pointers[21]=&game_settings.eject;
     keys[22]="explosions";          types[22]=CFG_INT;pointers[22]=&game_settings.explosions;
-    keys[23]="holesize";            types[23]=CFG_INT;pointers[23]=&game_settings.holesize;
-    keys[24]="recall";              types[24]=CFG_INT;pointers[24]=&game_settings.recall;
-    keys[25]="criticalhits";        types[25]=CFG_INT;pointers[25]=&game_settings.criticals;
-    keys[26]="sounds";              types[26]=CFG_INT;pointers[26]=&game_settings.sounds;
-    keys[27]="music";               types[27]=CFG_INT;pointers[27]=&game_settings.music;
-    keys[28]="playlist";            types[28]=CFG_INT;pointers[28]=&game_settings.playlist;
-    keys[29]="music_volume";        types[29]=CFG_INT;pointers[29]=&game_settings.music_vol;
-    keys[30]="sound_volume";        types[30]=CFG_INT;pointers[30]=&game_settings.sound_vol;
-    keys[31]="large_bullets";       types[31]=CFG_INT;pointers[31]=&game_settings.large_bullets;
-    keys[32]="bigscreens";          types[32]=CFG_INT;pointers[32]=&game_settings.bigscreens;
+    keys[23]="recall";              types[23]=CFG_INT;pointers[23]=&game_settings.recall;
+    keys[24]="criticalhits";        types[24]=CFG_INT;pointers[24]=&game_settings.criticals;
+    keys[25]="sounds";              types[25]=CFG_INT;pointers[25]=&game_settings.sounds;
+    keys[26]="music";               types[26]=CFG_INT;pointers[26]=&game_settings.music;
+    keys[27]="playlist";            types[27]=CFG_INT;pointers[27]=&game_settings.playlist;
+    keys[28]="music_volume";        types[28]=CFG_INT;pointers[28]=&game_settings.music_vol;
+    keys[29]="sound_volume";        types[29]=CFG_INT;pointers[29]=&game_settings.sound_vol;
+    keys[30]="large_bullets";       types[30]=CFG_INT;pointers[30]=&game_settings.large_bullets;
+    keys[31]="bigscreens";          types[31]=CFG_INT;pointers[31]=&game_settings.bigscreens;
     translate_config(values,sizeof(types)/sizeof(CfgPtrType),keys,types,pointers,0);
 }
 
@@ -537,10 +518,11 @@ static void parse_controllers_block(struct dllist *values) {
     while(values) {
         struct KeyValue *pair=values->data;
         int plr=atoi(pair->key);
-        if(plr<0 || plr>3)
+        if(plr<0 || plr>3) {
             printf("No such player (%d)\n",plr);
-        else
-            game_settings.controller[plr] = atoi (pair->value);
+        } else {
+            game_settings.controller[plr].number = atoi (pair->value);
+        }
         values=values->next;
     }
 }
@@ -553,16 +535,16 @@ static void parse_keys_block(struct dllist *values,int player) {
         if(key<0 || key>5)
             printf("No such key (%d)\n",key);
         else
-            game_settings.buttons[player][key] = atoi (pair->value);
+            game_settings.controller[player].keys[key] = atoi (pair->value);
         values=values->next;
     }
 }
 
 /* Load game configuration */
-void load_game_config (void) {
+static void load_game_config (void) {
     struct dllist *gamecfg,*cfgptr;
     
-    gamecfg=read_config_file(getfullpath(HOME_DIRECTORY,CONF_FILE),0);
+    gamecfg=read_config_file(getfullpath(HOME_DIRECTORY,"luola.cfg"),0);
     if(!gamecfg) {
         printf("Couldn't load configuration file. Using built in defaults.\n");
         return;
@@ -582,3 +564,4 @@ void load_game_config (void) {
     }
     dllist_free(gamecfg,free_config_file);
 }
+

@@ -60,7 +60,7 @@ typedef struct {
 extern char pilot_any_ejected;
 
 /* Initialization */
-extern int init_pilots (void);
+extern void init_pilots (LDAT *playerfile);
 extern void init_pilot (Pilot *pilot,int playernum);
 
 /* Animation */

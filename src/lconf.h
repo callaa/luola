@@ -24,29 +24,22 @@
 #ifndef L_LCONF_H
 #define L_LCONF_H
 
-#include <SDL.h>
-
-/* Binary luola configuration file version. */
-/* Other versions are not supported */
-#define LCONF_REVISION 2
-
-typedef struct _LevelBgMusic {
-    char *file;
-    struct _LevelBgMusic *next;
-} LevelBgMusic;
+#include "SDL.h"
+#include "list.h"
 
 /* Main block */
-typedef struct {
+struct LSB_Main {
     char *artwork;
     char *collmap;
     char *name;
+    char *thumbnail;
     float aspect;
     float zoom;
-    LevelBgMusic *music;
-} LSB_Main;
+    struct dllist *music;
+};
 
 /* Override block */
-typedef struct {
+struct LSB_Override {
     int indstr_base;
     int critters;
     int stars;
@@ -59,36 +52,45 @@ typedef struct {
     int bats;
     int soldiers;
     int helicopters;
-} LSB_Override;
+};
 
-/* Objects block */
-typedef struct LSB_Objects {
-    Uint8 type;
+/* Object types */
+typedef enum {OBJ_TURRET,OBJ_JUMPGATE,OBJ_COW,OBJ_FISH,OBJ_BIRD,OBJ_BAT,
+    OBJ_SOLDIER,OBJ_HELICOPTER,OBJ_SHIP} ObjectType;
+#define FIRST_SPECIAL OBJ_TURRET
+#define LAST_SPECIAL OBJ_JUMPGATE
+#define FIRST_CRITTER OBJ_COW
+#define LAST_CRITTER OBJ_HELICOPTER
+
+/* Object block */
+struct LSB_Object {
+    ObjectType type;
     int x, y;
-    Uint8 ceiling_attach;
-    Uint8 value;
-    Uint32 id, link;
-    struct LSB_Objects *next;
-} LSB_Objects;
+    int ceiling_attach;
+    int value;
+    unsigned int id, link;
+};
 
 /* Palette block */
-typedef struct {
+struct LSB_Palette {
     Uint8 entries[256];
-} LSB_Palette;
+};
 
 /* Level settings structure */
-typedef struct {
-    LSB_Main *mainblock;
-    LSB_Override *override;
-    LSB_Objects *objects;
-    LSB_Palette *palette;
-    SDL_Surface *icon;
-} LevelSettings;
+struct LevelSettings {
+    struct LSB_Main mainblock;
+    struct LSB_Palette palette;
+    struct LSB_Override *override;
+    struct dllist *objects;
+    /* Thumbnail is loaded afterwards from the file named in mainblock */
+    SDL_Surface *thumbnail;
+};
 
-/* Load a text mode configuration file */
-LevelSettings *load_level_config (const char *filename);
+/* Load level configuration from a file */
+struct LevelSettings *load_level_config (const char *filename);
 
-/* Load a binary configuration file */
-LevelSettings *load_level_config_rw (SDL_RWops * rw, int len);
+/* Load level configuration from an SDL_RWops */
+/* The filename is used just for error messages */
+struct LevelSettings *load_level_config_rw (SDL_RWops * rw, size_t len, const char *filename);
 
 #endif

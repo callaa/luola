@@ -1,3 +1,24 @@
+20.12.2005 Version 1.3.1
+ * The menu code was rewritten
+ * An arbitrary number of joypads can now be used
+ * Code cleanups
+ * Audio channels startup option was removed
+ * Level and weapon selection screens were rewritten
+ * Added support for level thumbnails
+ * The generic parser is now used to load level configuration files
+ * Binary level configuration file format was dropped
+ * All graphics are now loaded from a single datafile
+ * Luola now responds to quit event from window manager
+ * Startup defaults configuration file format was changed
+ * Bugfix: Levels smaller than the viewport are no longer allowed
+ * Sound effects are now packed into an LDAT file
+ * Music now fades out on end of level
+ * Bugfix: explosion animation are now drawn again while player screen fades out
+ * Hole size is now smaller and unchangeable
+ * Compact level files no longer need to end in .compact.lev
+ * Compact level files can now contain multiple levels
+ * Random critter counts are now random
+
 23.10.2005 Version 1.3.0
  * Bugfix: Pressing joystick buttons could toggle fullscreen mode in menus
  * Bugfix: Game paused message is now properly centered again

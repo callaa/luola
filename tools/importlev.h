@@ -7,6 +7,7 @@ struct Files {
     const char *artwork;
     const char *collmap;
     const char *cfgfile;
+    const char *thumbnail;
 };
 
 /* Importer module registration function should return */
@@ -15,9 +16,9 @@ struct Importer {
 	/* Name of this level format */
 	const char *name;
 
-    /* Does this module need SDL to be initialized? */
-    int need_sdl;
-
+    /* Level aspect ratio */
+    float aspect;
+    
 	/* Check if the given file is in this format */
 	int (*check_format)(FILE *fp);
 

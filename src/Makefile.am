@@ -6,7 +6,6 @@ luola_LDADD = @SDL_LIBS@
 
 luola_SOURCES = \
 	defines.h \
-	hole.h \
 	number.h \
 	console.c \
 	console.h \
@@ -16,8 +15,6 @@ luola_SOURCES = \
 	parser.h \
 	fs.c \
 	fs.h \
-	stringutil.c \
-	stringutil.h \
 	SFont.c \
 	SFont.h \
 	level.c \
@@ -58,6 +55,8 @@ luola_SOURCES = \
 	menu.h \
 	hotseat.c \
 	hotseat.h \
+	selection.c \
+	selection.h \
 	startup.c \
 	startup.h \
 	demo.c \
@@ -68,6 +67,4 @@ luola_SOURCES = \
 	lconf.h \
 	lcmap.h \
 	lcmap.c \
-	sbmp.h \
-	sbmp.c \
 	main.c

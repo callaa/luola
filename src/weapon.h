@@ -26,6 +26,7 @@
 
 #include "SDL.h"
 #include "vector.h"
+#include "game.h"
 #include "weapon.h"
 #include "list.h"
 
@@ -77,9 +78,8 @@ typedef struct {
 } Projectile;
 
 /* Initialization */
-extern int init_weapons (void);
+extern void init_weapons (LDAT *explosionfile);
 extern void clear_weapons (void);
-extern void set_hole_size (Uint8 size);
 
 /* Handling */
 extern Projectile *make_projectile (double x, double y, Vector v);
@@ -87,6 +87,8 @@ extern void add_projectile (Projectile * proj);
 extern void spawn_clusters (int x, int y, int count, ProjectileType type);
 extern void add_explosion (int x, int y, ProjectileType cluster);
 extern int detonate_remote (struct Ship *plr);
+extern const char *weap2str (int weapon);
+extern const char *sweap2str (int weapon);
 
 /* Animation */
 extern void animate_weapons (void);

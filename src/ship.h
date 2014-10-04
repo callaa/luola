@@ -29,6 +29,17 @@
 #include "weapon.h"
 #include "list.h"
 
+/* Critical hits */
+#define CRITICAL_COUNT          8
+#define CRITICAL_ENGINE         0x01
+#define CRITICAL_FUELCONTROL    0x02
+#define CRITICAL_LTHRUSTER      0x04
+#define CRITICAL_RTHRUSTER      0x08
+#define CRITICAL_CARGO          0x10
+#define CRITICAL_STDWEAPON      0x20
+#define CRITICAL_SPECIAL        0x40
+#define CRITICAL_POWER          0x80
+
 typedef enum { Grey, Red, Blue, Green, Yellow, White, Frozen } PlayerColor;
 typedef enum { NormalWeapon, SpecialWeapon, SpecialWeapon2 } WeaponClass;
 
@@ -47,7 +58,6 @@ struct Ship {
     double energy;
     int tagged;
     Uint8 repeat_audio;
-    Uint8 vwing_exhaust;
     int carrying;
     char onbase;
     /* Mostly weapons related stuff */
@@ -74,9 +84,9 @@ struct Ship {
 };
 
 /* Initialization */
-extern int init_ships (void);
+extern void init_ships (LDAT *playerfile);
 extern void clean_ships (void);
-extern void reinit_ships (LevelSettings * settings);
+extern void reinit_ships (struct LevelSettings * settings);
 extern struct Ship *create_ship (PlayerColor color, SWeaponType weapon,
                           WeaponType special);
 

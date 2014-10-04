@@ -179,7 +179,7 @@ static void unload_level(void) {
 /*
  * Write out level configuration file
  */
-static int write_cfg(const char *basename,const char *artfile,const char *collfile,const char *filename) {
+static int write_cfg(const char *basename,const char *artfile,const char *collfile,const char *thumbnailfile,const char *filename) {
     FILE *fp;
     const char *slash,*dot;
     char name[256];
@@ -206,51 +206,8 @@ static int write_cfg(const char *basename,const char *artfile,const char *collfi
     fprintf(fp,"\n[main]\n");
     fprintf(fp,"artwork = %s\n",artfile);
     fprintf(fp,"collisionmap = %s\n",collfile);
+    fprintf(fp,"thumbnail = %s\n", thumbnailfile);
     fprintf(fp,"name = %s\n",name);
-    fprintf(fp,"[end]\n\n");
-    fprintf(fp,"[icon]\n");
-    fprintf(fp,"/* XPM */\n"
-            "static char * tou_xpm[] = {\n"
-            "\"32 31 7 1\",\n"
-            "\"       c none\"\n"
-            "\".      c #0000FF\",\n"
-            "\"+      c #000080\",\n"
-            "\"@      c #FFFFFF\",\n"
-            "\"#      c #010101\",\n"
-            "\"$      c #FFFF00\",\n"
-            "\"%%      c #808080\",\n"
-            "\"               .                \",\n"
-            "\"              +@.               \",\n"
-            "\"             ++.@.              \",\n"
-            "\"            ++...@.             \",\n"
-            "\"           ++.....@.            \",\n"
-            "\"          ++.......@.           \",\n"
-            "\"         ++.........@.          \",\n"
-            "\"        ++...........@.         \",\n"
-            "\"       ++.............@.        \",\n"
-            "\"      ++...............@.       \",\n"
-            "\"     ++.................@.      \",\n"
-            "\" ########..#########...##@.  ## \",\n"
-            "\"#$$$$$$$$##$$$$$$$$$#.#$$#@.#$$#\",\n"
-            "\" ###$$###.#$$#####$$#.#$$#.@#$$#\",\n"
-            "\" ++#$$#...#$$#...#$$#.#$$#..#$$#\",\n"
-            "\"##.#$$#...#$$#...#$$#.#$$#..#$$#\",\n"
-            "\" ###$$#...#$$#...#$$#.#$$#.%%#$$#\",\n"
-            "\"  ##$$#...#$$#####$$#.#$$####$$#\",\n"
-            "\"   #$$#...#$$$$$$$$$#.#$$$$$$$$#\",\n"
-            "\"    ##.....#########...######## \",\n"
-            "\"     ##.................++      \",\n"
-            "\"      ##...............++       \",\n"
-            "\"       ##.............++        \",\n"
-            "\"        ##...........++         \",\n"
-            "\"         ##.........++          \",\n"
-            "\"          ##.......++           \",\n"
-            "\"           ##.....++            \",\n"
-            "\"            ##...++             \",\n"
-            "\"             ##.++              \",\n"
-            "\"              ##+               \",\n"
-            "\"               #                \"};\n");
-    fprintf(fp,"[end]\n");
 
     fclose(fp);
     return 0;
@@ -430,16 +387,19 @@ static int write_collmap(const char *filename,int lcmap) {
  */
 static struct Files save_level(const char *basename,int lcmap) {
     static char artfile[PATH_MAX],collfile[PATH_MAX],cfgfile[PATH_MAX];
+    static char thumbnailfile[PATH_MAX];
     struct Files result;
     
     sprintf(artfile,"%s.luola.jpg",basename);
     sprintf(collfile,"%s.luola.%s",basename,lcmap?"lcmap":"bmp");
     sprintf(cfgfile,"%s.luola.lev",basename);
+    sprintf(thumbnailfile,"%s.thumb.png",basename);
 
     result.failed=0;
     result.artwork=artfile;
     result.collmap=collfile;
     result.cfgfile=cfgfile;
+    result.thumbnail=thumbnailfile;
 
     if(write_data(artfile,artwork,artwork_len)) {
         result.failed = 1;
@@ -447,7 +407,7 @@ static struct Files save_level(const char *basename,int lcmap) {
         if(write_collmap(collfile,lcmap)) {
             result.failed=1;
         } else {
-            if(write_cfg(basename,artfile,collfile,cfgfile)) {
+            if(write_cfg(basename,artfile,collfile,thumbnailfile,cfgfile)) {
                 remove(artfile);
                 remove(collfile);
                 result.failed=1;
@@ -464,7 +424,7 @@ static struct Files save_level(const char *basename,int lcmap) {
 struct Importer register_tou(void) {
     struct Importer i;
     i.name = "TOU";
-    i.need_sdl = 1;
+    i.aspect = 1.0;
     i.check_format = check_format;
     i.load_level = load_level;
     i.unload_level = unload_level;

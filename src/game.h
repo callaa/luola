@@ -26,15 +26,13 @@
 
 #include "SDL.h"
 
+#include "console.h"
+#include "ldat.h"
 #include "lconf.h"
 
 #define PLAYMODE_COUNT 5
 
-typedef enum { Keyboard, Pad1, Pad2, Pad3, Pad4 } ControllerType;
-typedef enum { Forward, Backward, Left, Right, Weap1, Weap2 } Keys;
 typedef enum { Normal, OutsideShip, OutsideShip1, RndCritical,RndWeapon } Playmode;
-
-extern unsigned int Controllers;
 
 struct dllist;
 
@@ -48,22 +46,19 @@ typedef struct {
     int soldiers, helicopters;        /* These are the maximium number of hostile critters each player can have */
 } PerLevelSettings;
 
+typedef enum {JLIFE_SHORT,JLIFE_MEDIUM,JLIFE_LONG} Jumplife;
+
 typedef struct {
     int rounds;
-    char players_in[4];
     Playmode playmode;
     /* Controller options */
-    ControllerType controller[4];
-    SDLKey buttons[4][6];       /* Forward, Backward, Left,Right,Weap1,Weap2 */
-
+    struct Controller controller[4];
+    /* Levels */
     struct dllist *levels;
-    struct dllist *first_level;
-    struct dllist *last_level;
-    int levelcount;
     /* General game settings */
     int ship_collisions;
     int coll_damage;
-    int jumplife;
+    Jumplife jumplife;
     int enable_smoke;
     int endmode;
     int eject;
@@ -75,7 +70,6 @@ typedef struct {
     int large_bullets;
     int weapon_switch;
     int explosions;
-    int holesize;
     int criticals;
     /* Level settings */
     PerLevelSettings ls;
@@ -83,7 +77,7 @@ typedef struct {
     /* Audio settings */
     int sounds;
     int music;
-    int playlist;              /* Ordered, random */
+    enum {PLS_ORDERED,PLS_SHUFFLED} playlist;
     int sound_vol;             /* 0-128 */
     int music_vol;             /* 0-128 */
     /* Temporary settings */
@@ -98,13 +92,12 @@ typedef struct {
 } GameStatus;
 
 /* Initialization */
-extern int init_game (void);
+extern void init_game (LDAT *miscfile);
 extern void reset_game (void);
-extern void prematch_game (void);
-extern void apply_per_level_settings (LevelSettings * settings);
+extern void apply_per_level_settings (struct LevelSettings * settings);
 
 /* Drawing */
-extern void fill_unused_player_screens (void);
+extern void fill_player_screens (void);
 
 /* Game over statistics screen */
 extern void game_statistics (void);
@@ -116,10 +109,9 @@ extern void game_eventloop (void);
 extern GameInfo game_settings;
 extern PerLevelSettings level_settings;
 extern GameStatus game_status;
-extern Uint8 game_loop;
+extern int game_loop;
 
-/* Saving/loading configuration and level stuff */
+/* Save game settings */
 extern void save_game_config (void);
-extern void load_game_config (void);
 
 #endif

@@ -1,6 +1,6 @@
 /*
  * LDAT - Luola Datafile format archiver
- * Copyright (C) 2002 Calle Laakkonen
+ * Copyright (C) 2002-2005 Calle Laakkonen
  *
  * File        : archive.c
  * Description : Functions to manipulate LDAT files
@@ -19,242 +19,297 @@
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
-*/
+ */
 
 #include <string.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <sys/stat.h>
 #include <ctype.h>
 #include <errno.h>
 
 #include "ldat.h"
 #include "archive.h"
-#include "stringutil.h"
 
-static const char *align_space(char *str,int len) {
-  static char buffer[128];
-  int l;
-  l=strlen(str);
-  l=len-l;
-  memset(buffer,' ',l);
-  buffer[l]='\0';
-  return buffer;
-}
+#include "parser.h"
 
-static int save_rw_to_file(char *file,SDL_RWops *rw,Uint32 len) {
-  Uint8 *buffer;
-  Uint32 copied=0,read,toread;
-  FILE *fp;
-  fp=fopen(file,"w");
-  if(fp==NULL) {
-    printf("Error ! Could not open file \"%s\" for writing !\n",file);
-    return;
-  }
-  buffer=(Uint8*)malloc(1024); /* Buffer size */
-  while(copied<len) {
-    if(len-copied<1024) toread=len-copied; else toread=1024;
-    read=SDL_RWread(rw,buffer,1,toread);
-    if(read<toread) {
-      printf("Error ! Read only %d bytes when we were supposed to read %d bytes !\n");
-      return 1;
+struct LDATIndex {
+    char filename[512];
+    struct dllist *files;
+};
+
+/* Make a new Filename */
+struct Filename *make_file(const char *name,const char *id,int index) {
+    struct Filename *file;
+    struct stat finfo;
+    if (stat(name, &finfo)) {
+        perror(name);
+        return NULL;
     }
-    fwrite(buffer,1,read,fp);
-    copied+=read;
-  }
-  free(buffer);
-  fclose(fp);
-  return 0;
+
+    file = malloc(sizeof(struct Filename));
+    if(!file) {
+        perror("make_file");
+        return NULL;
+    }
+
+    strcpy(file->filename,name);
+    strcpy(file->id,id);
+    file->index = index;
+    file->len = finfo.st_size;
+
+    return file;
 }
 
-static char *getfilename(char *fn) {
-  char *filename,*ptr;
-  int len;
-  ptr=strrchr(fn,'/');
-  if(ptr==NULL) return fn;
-  len=strlen(fn)-(ptr-fn);
-  filename=malloc(len);
-  strcpy(filename,ptr+1);
-  filename[len]='\0';
-  return filename;
+/* Read a list of files to extract/archive */
+static int read_packfile(struct LDATIndex *index, const char *filename,int getlen) {
+    char tmps[512],*line=NULL;
+    struct Filename fn;
+    FILE *fp;
+
+    fp = fopen(filename, "r");
+    if (!fp) {
+        perror(filename);
+        return 1;
+    }
+    for (; fgets(tmps, sizeof(tmps) - 1, fp); free(line)) {
+        line = strip_white_space(tmps);
+        if (line == NULL || strlen(line) == 0 || line[0]=='#')
+            continue;
+        if (isdigit(line[0])) {	/* Data file entry */
+            struct Filename *newfile;
+            struct stat finfo;
+
+            sscanf(line, "%d %s %s\n", &fn.index, &fn.id, &fn.filename);
+            if(getlen) {
+                if (stat(fn.filename, &finfo)) {
+                    perror(fn.filename);
+                    continue;
+                }
+                fn.len = finfo.st_size;
+            }
+            newfile = malloc(sizeof(struct Filename));
+            memcpy(newfile,&fn,sizeof(struct Filename));
+            if(index->files)
+                dllist_append(index->files,newfile);
+            else
+                index->files = dllist_append(NULL,newfile);
+        } else if(sscanf(line,"ldat: %s",tmps)==1) {
+            strcpy(index->filename,tmps);
+	    } else {
+            fprintf(stderr,"%s: unhandled line\n",line);
+        }
+	}
+    fclose(fp);
+    return 0;
 }
 
-/* Print the list of items in an LDAT file to stdout */
-/* Returns the number of items printed */
-int print_ldat_catalog(LDAT *ldat,int verbose) {
-  LDAT_Block *item;
-  int count=0;
-  item=ldat->catalog;
-  while(item) {
-    if(verbose)
-      printf("%s%s%d\t\t%d\t%d\n",item->ID,align_space(item->ID,30),item->index,item->size,item->pos);
+static const char *align_space(char *str, int len)
+{
+    static char buffer[128];
+    int l;
+    l = strlen(str);
+    l = len - l;
+    memset(buffer, ' ', l);
+    buffer[l] = '\0';
+    return buffer;
+}
+
+/* Write data from an SDL_RWops to file */
+static int save_rw_to_file(const char *file, SDL_RWops *rw, size_t len)
+{
+    size_t copied = 0, read, toread;
+    Uint8 buffer[1024];
+    FILE *fp;
+
+    fp = fopen(file, "wb");
+    if (fp == NULL) {
+        perror(file);
+        return 1;
+    }
+    while (copied < len) {
+        if (len - copied < sizeof(buffer))
+            toread = len - copied;
+        else
+            toread = sizeof(buffer);
+        read = SDL_RWread(rw, buffer, 1, toread);
+        if (read == 0) {
+            fprintf(stderr,"save_rw_to_file: %s\n",SDL_GetError());
+            return 1;
+        }
+        if(fwrite(buffer, 1, read, fp)!=read) {
+            perror(file);
+            return 1;
+        }
+        copied += read;
+    }
+    fclose(fp);
+    return 0;
+}
+
+/* Gets the filename without the path component */
+static char *getbasename(const char *fn)
+{
+    char *filename, *ptr;
+    int len;
+    ptr = strrchr(fn, '/');
+    if (ptr == NULL)
+        return strdup(fn);
+    len = strlen(fn) - (ptr - fn);
+    filename = malloc(len);
+    strcpy(filename, ptr + 1);
+    filename[len] = '\0';
+    return filename;
+}
+
+/*
+ * Print the list of items in an LDAT file to stdout 
+ *
+ * Returns the number of items printed 
+ */
+int print_ldat_catalog(LDAT * ldat, int verbose)
+{
+    LDAT_Block *item;
+    int count = 0;
+    item = ldat->catalog;
+    while (item) {
+        if (verbose)
+            printf("%s%s%d\t\t%d\t%d\n", item->ID,
+               align_space(item->ID, 30), item->index, item->size,
+               item->pos);
+        else
+            printf("%s%s%d\n", item->ID, align_space(item->ID, 30),
+               item->index);
+        item = item->next;
+        count++;
+    }
+    return count;
+}
+
+/*
+ * Put the selected files into an LDAT file 
+ */
+int pack_ldat_files(LDAT * ldat, struct dllist *filenames,int verbose)
+{
+
+    while (filenames) {
+        struct Filename *file = filenames->data;
+        SDL_RWops *rw;
+        rw = SDL_RWFromFile(file->filename, "rb");
+        if(!rw) {
+            fprintf(stderr,"%s: %s\n",file->filename,SDL_GetError());
+            return 1;
+        }
+
+        ldat_put_item(ldat, strdup(file->id), file->index, rw, file->len);
+        if(verbose)
+            printf("Put item with ID \"%s\" and index %d, size %d\n",
+                    file->id, file->index, file->len);
+        
+        filenames = filenames->next;
+    }
+    return 0;
+}
+
+/*
+ * Unpack selected file from an LDAT file 
+ */
+int unpack_ldat_file(LDAT * ldat, const struct Filename *file,int verbose)
+{
+    SDL_RWops *item = ldat_get_item(ldat, file->id, file->index);
+    if (item) {
+        if(verbose)
+            printf("Extracting file \"%s\" %d... ", file->id,file->index);
+        if (!save_rw_to_file(file->filename, item,
+                    ldat_get_item_length(ldat, file->id, file->index)))
+        {
+            if(verbose)
+                printf("Ok.\n");
+        } else
+        {
+            if(verbose)
+                printf("Failed.\n");
+            return 1;
+        }
+    } else {
+        fprintf(stderr, "Couldn't get item \"%s\" %d\n", file->id,file->index);
+        return 1;
+    }
+    return 0;
+}
+
+/*
+ * Pack an LDAT file according to the description in INDEX 
+ */
+/*
+ * Returns the path for the output LDAT file 
+ */
+char *pack_ldat_index(LDAT * ldat, const char *indexfile, int packindex,int verbose)
+{
+    struct LDATIndex index;
+    char *rval;
+
+    index.filename[0] = '\0';
+    index.files = NULL;
+
+    if(read_packfile(&index,indexfile,1)) {
+        return NULL;
+    }
+
+    if(index.files == NULL) {
+        printf("Nothing to do!\n");
+        return NULL;
+    }
+
+    if(packindex) {
+        struct Filename *ifile = make_file(indexfile,"INDEX",0);
+        if(ifile==NULL)
+            return NULL;
+        dllist_append(index.files,ifile);
+    }
+
+    if(pack_ldat_files(ldat,index.files,verbose))
+        rval = NULL;
     else
-      printf("%s%s%d\n",item->ID,align_space(item->ID,30),item->index);
-    item=item->next;
-    count++;
-  }
-  return count;
+        rval = strdup(index.filename);
+
+    dllist_free(index.files,free);
+    return rval;
 }
 
-/* Put the selected files into an LDAT file */
-int pack_ldat_files(LDAT *ldat,Filename *files) {
-  struct stat finfo;
-  Filename *next;
-  SDL_RWops *rw;
-  char *ID;
-  int r,index;
+/*
+ * Unpack an LDAT file according to the description in INDEX 
+ */
+int unpack_ldat_index(const char *indexfile,int verbose)
+{
+    struct LDATIndex index;
+    LDAT *ldat;
+    int rval;
 
-  while(files) {
-    next=files->next;
-    index=0;
-    if(next) {
-      for(r=0;r<strlen(next->filename);r++)
-        if(isdigit(next->filename[r])==0) {r=-1; break;}
-      if(r>0) {
-        index=atoi(next->filename);
-        next=next->next;
-      }
-    }
-    if(stat(files->filename,&finfo)) {
-      perror(files->filename);
-      files=next; continue;
-    }
-    ID=getfilename(files->filename);
-    rw=SDL_RWFromFile(files->filename,"rb");
-    ldat_put_item(ldat,ID,index,rw,finfo.st_size);
-    printf("Put item with ID \"%s\" and index %d, size %d\n",ID,index,finfo.st_size);
-    files=next;
-  }
-  return 0;
-}
+    index.filename[0] = '\0';
+    index.files = NULL;
 
-/* Unpack selected files from an LDAT file */
-int unpack_ldat_files(LDAT *ldat,Filename *files) {
-  SDL_RWops *item;
-  Filename *next;
-  int r,index;
-  while(files) {
-    next=files->next;
-    index=0;
-    if(next) {
-      for(r=0;r<strlen(next->filename);r++)
-        if(isdigit(next->filename[r])==0) {r=-1; break;}
-      if(r>0) {
-        index=atoi(next->filename);
-        next=next->next;
-      }
+    if(read_packfile(&index,indexfile,0)) {
+        return 1;
     }
-    item=ldat_get_item(ldat,files->filename,index);
-    if(item) {
-      printf("Unpacking file \"%s\"... ",files->filename);
-      if(!save_rw_to_file(files->filename,item,ldat_get_item_length(ldat,files->filename,index)))
-        printf("Ok.\n");
-    }
-    files=next;
-  }
-  return 0;
-}
 
-/* Pack an LDAT file according to the description in INDEX */
-/* Returns the path for the output LDAT file */
-char *pack_ldat_index(LDAT *ldat,char *filename,int packindex) {
-  char *line=NULL,*ldat_out="foo.ldat";
-  char tmps[512],ID[128],fn[384];
-  char *left,*right;
-  struct stat finfo;
-  int index;
-  FILE *fp;
-  if(packindex) { /* Automatically include the index file */
-    SDL_RWops *indexrw;
-    if(stat(filename,&finfo)) {
-      printf("Error ! Could not stat file \"%s\"\n",filename);
-      return NULL;
+    if(index.files == NULL) {
+        printf("Nothing to do!\n");
+        return 1;
     }
-    indexrw=SDL_RWFromFile(filename,"rb");
-    ldat_put_item(ldat,"INDEX",0,indexrw,finfo.st_size);
-    printf("Put INDEX item\n");
-  }
-  fp=fopen(filename,"r");
-  if(!fp) {
-    printf("Error ! Could not open file \"%s\"\n",filename);
-    return NULL;
-  }
-  for (; fgets(tmps,sizeof(tmps)-1,fp); free(line)) {
-    line=strip_white_space(tmps);
-    if(line==NULL || strlen(line)==0) continue;
-    if(line[0]=='#') continue;
-    if(isdigit(line[0])) { /* Data file entry */
-       SDL_RWops *rw;
-       sscanf(line,"%d %s %s\n",&index,&ID,&fn);
-       if(stat(fn,&finfo)) {
-         perror(fn);
-	 continue;
-       }
-       rw=SDL_RWFromFile(fn,"r");
-       ldat_put_item(ldat,strdup(ID),index,rw,finfo.st_size);
-       printf("Put item with ID \"%s\" and index %d, size %d\n",ID,index,finfo.st_size);
-    } else { /* A setting */
-      split_string(line,':',&left,&right);
-      if(strcmp(left,"ldat")==0) {
-        ldat_out=right;
-      } else free(right);
-      free(left);
-    }
-  }
-  fclose(fp);
-  return ldat_out;
-}
 
-/* Unpack an LDAT file according to the description in INDEX */
-int unpack_ldat_index(char *filename) {
-  char *line=NULL,*ldat_in="foo.ldat";
-  char tmps[512],ID[128],fn[384];
-  Filename *files=NULL,*prev;
-  char *left,*right;
-  SDL_RWops *item;
-  LDAT *ldat;
-  FILE *fp;
-  fp=fopen(filename,"r");
-  if(!fp) {
-    printf("Error ! Could not open file \"%s\"\n",filename);
-    return 1;
-  }
-  for (; fgets(tmps,sizeof(tmps)-1,fp); free(line)) {
-    line=strip_white_space(tmps);
-    if(line==NULL || strlen(line)==0) continue;
-    if(line[0]=='#') continue;
-    if(isdigit(line[0])) { /* Data file entry */
-      Filename *newfile;
-      newfile=(Filename*)malloc(sizeof(Filename));
-      newfile->next=NULL;
-      newfile->prev=files;
-      if(files) files->next=newfile;
-      files=newfile;
-      sscanf(line,"%d %s %s\n",&newfile->index,&ID,&fn);
-      newfile->id=strdup(ID);
-      newfile->filename=strdup(fn);
-    } else { /* A setting */
-      split_string(line,':',&left,&right);
-      if(strcmp(left,"ldat")==0) {
-        ldat_in=right;
-      } else free(right);
-      free(left);
+    ldat = ldat_open_file(index.filename);
+    if(!ldat)
+        rval = -1;
+    else {
+        struct dllist *ptr = index.files;
+        while(ptr) {
+            rval = unpack_ldat_file(ldat,ptr->data,verbose);
+            if(rval!=0) break;
+            ptr=ptr->next;
+        }
+        dllist_free(index.files,free);
+        ldat_free(ldat);
     }
-  }
-  fclose(fp);
-  /* Data gathering complete, unpack files */
-  ldat=ldat_open_file(ldat_in);
-  if(ldat==NULL) return 1;
-  while(files) {
-    item=ldat_get_item(ldat,files->id,files->index);
-    if(item) {
-      printf("Unpacking file \"%s\"... ",files->filename);
-      if(!save_rw_to_file(files->filename,item,ldat_get_item_length(ldat,files->id,files->index)))
-        printf("Ok.\n");
-    }
-    free(files->id);
-    free(files->filename);
-    prev=files->prev;
-    free(files);
-    files=prev;
-  }
-  return 0;
+    return rval;
 }

@@ -26,7 +26,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-#include "defines.h"
+#include "defines.h"    /* FADE_STEPS */
 #include "console.h"
 #include "demo.h"
 
@@ -46,30 +46,6 @@ static Star stars[STARFIELD_COUNT];
 static Uint32 starcolors[256];
 static SDL_Surface *demo_black;
 
-/* Internally used functions */
-static void init_star (Star * star, short i);
-
-/* Initialize */
-void init_demos (void)
-{
-    int r;
-    for (r = 0; r < STARFIELD_COUNT; r++)
-        init_star (&stars[r], r + 1);
-    for (r = 0; r < 256; r++)
-        starcolors[r] = map_rgba(r*3, r*3, r*3, 255);
-    demo_black =
-        SDL_CreateRGBSurface (screen->flags, screen->w, screen->h,
-                              screen->format->BitsPerPixel,
-                              screen->format->Rmask, screen->format->Gmask,
-                              screen->format->Bmask, screen->format->Amask);
-    if(demo_black) {
-        memset (demo_black->pixels, 0, demo_black->pitch * screen->h);
-        SDL_SetAlpha (demo_black, SDL_SRCALPHA | SDL_RLEACCEL, FADE_STEP);
-    } else {
-        fprintf(stderr,"init_demos(): %s\n",SDL_GetError());
-    }
-}
-
 /* Initialize a single star */
 static void init_star (Star * star, short i)
 {
@@ -88,6 +64,22 @@ static void init_star (Star * star, short i)
     star->px = (star->x / star->z) + screen->w / 2;
     star->py = (star->y / star->z) + screen->h / 2;
 
+}
+
+/* Initialize */
+void init_demos (void)
+{
+    int r;
+    for (r = 0; r < STARFIELD_COUNT; r++)
+        init_star (&stars[r], r + 1);
+    for (r = 0; r < 256; r++)
+        starcolors[r] = map_rgba(r*3, r*3, r*3, 255);
+    demo_black = make_surface(screen,0,0);
+    if(demo_black) {
+        SDL_SetAlpha (demo_black, SDL_SRCALPHA | SDL_RLEACCEL, FADE_STEP);
+    } else {
+        fprintf(stderr,"init_demos(): %s\n",SDL_GetError());
+    }
 }
 
 /* Draw and animate a starfield */
@@ -131,18 +123,16 @@ void fade_to_black (void) {
     int r;
     SDL_Event Event;
     SDL_Surface *tmpsurface;
-    tmpsurface =
-        SDL_CreateRGBSurface (screen->flags, screen->w, screen->h,
-                              screen->format->BitsPerPixel,
-                              screen->format->Rmask, screen->format->Gmask,
-                              screen->format->Bmask, screen->format->Amask);
+    tmpsurface = copy_surface(screen);
     if(tmpsurface==NULL || demo_black==NULL) {
         if(!tmpsurface)
             fprintf(stderr,"fade_to_black(): %s\n",SDL_GetError());
+        else
+            SDL_FreeSurface(tmpsurface);
         SDL_FillRect(screen,NULL,0);
         return;
     }
-    memcpy(tmpsurface->pixels,screen->pixels,screen->pitch*screen->h);
+
     for (r = 0; r <= FADE_STEPS; r++) {
         lasttime=SDL_GetTicks();
         while (SDL_PollEvent (&Event)) {
