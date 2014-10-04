@@ -73,6 +73,7 @@ AM_PATH_SDL(1.1.5,,AC_MSG_ERROR([*** SDL >= 1.1.5 not installed - please install
 #AC_CHECK_LIB(pthread, main,, AC_MSG_ERROR(SDL needs pthread !))
 AC_CHECK_LIB([SDL_image],[main],[],AC_MSG_ERROR(SDL_image is needed))
 AC_CHECK_LIB([z],[main],[],AC_MSG_ERROR(libz is needed))
+AC_CHECK_LIB([m],[main],[],AC_MSG_ERROR(libm is needed))
 
 AC_CONFIG_FILES([Makefile
                  contrib/Makefile
